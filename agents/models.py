@@ -194,3 +194,96 @@ class WellnessActivity(models.Model):
     
     def __str__(self):
         return f"{self.activity_type} - {self.recorded_at.date()}"
+
+
+class Event(models.Model):
+    """Store events in the message bus pattern"""
+    EVENT_TYPES = [
+        ('INTENT_RECEIVED', 'Intent Received'),
+        ('AGENT_SELECTED', 'Agent Selected'),
+        ('CONTEXT_FETCHED', 'Context Fetched'),
+        ('AGENT_RESPONSE', 'Agent Response'),
+        ('ACTIONS_APPLIED', 'Actions Applied'),
+        ('AUDIT_LOGGED', 'Audit Logged'),
+        ('ERROR_OCCURRED', 'Error Occurred'),
+    ]
+    
+    event_type = models.CharField(max_length=50, choices=EVENT_TYPES)
+    session = models.ForeignKey(AgentSession, on_delete=models.CASCADE, related_name='events')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    payload = models.JSONField(help_text="Event data and context")
+    metadata = models.JSONField(null=True, blank=True, help_text="Additional metadata")
+    timestamp = models.DateTimeField(auto_now_add=True)
+    parent_event = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='child_events')
+    
+    class Meta:
+        ordering = ['timestamp']
+        indexes = [
+            models.Index(fields=['event_type', 'timestamp']),
+            models.Index(fields=['session', 'timestamp']),
+        ]
+    
+    def __str__(self):
+        return f"{self.event_type} - {self.timestamp}"
+
+
+class AuditLog(models.Model):
+    """Comprehensive audit trail for all system activities"""
+    ACTION_TYPES = [
+        ('USER_ACTION', 'User Action'),
+        ('AGENT_ACTION', 'Agent Action'),
+        ('SYSTEM_ACTION', 'System Action'),
+        ('DATA_MODIFICATION', 'Data Modification'),
+        ('AUTHENTICATION', 'Authentication'),
+    ]
+    
+    action_type = models.CharField(max_length=50, choices=ACTION_TYPES)
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    session = models.ForeignKey(AgentSession, on_delete=models.SET_NULL, null=True, blank=True)
+    event = models.ForeignKey(Event, on_delete=models.SET_NULL, null=True, blank=True)
+    action = models.CharField(max_length=200, help_text="Description of the action")
+    resource = models.CharField(max_length=200, null=True, blank=True, help_text="Resource affected (e.g., Task:123)")
+    details = models.JSONField(help_text="Detailed information about the action")
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(null=True, blank=True)
+    success = models.BooleanField(default=True)
+    error_message = models.TextField(null=True, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['action_type', 'timestamp']),
+            models.Index(fields=['user', 'timestamp']),
+            models.Index(fields=['session', 'timestamp']),
+        ]
+    
+    def __str__(self):
+        return f"{self.action_type} - {self.action} - {self.timestamp}"
+
+
+class AgentContext(models.Model):
+    """Store context information for agent interactions"""
+    session = models.ForeignKey(AgentSession, on_delete=models.CASCADE, related_name='contexts')
+    context_type = models.CharField(max_length=50, choices=[
+        ('USER_PREFERENCES', 'User Preferences'),
+        ('CONVERSATION_HISTORY', 'Conversation History'),
+        ('TASK_CONTEXT', 'Task Context'),
+        ('TEMPORAL_CONTEXT', 'Temporal Context'),
+        ('CUSTOM', 'Custom'),
+    ])
+    key = models.CharField(max_length=100, help_text="Context key identifier")
+    value = models.JSONField(help_text="Context data")
+    expires_at = models.DateTimeField(null=True, blank=True, help_text="When this context expires")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-updated_at']
+        unique_together = ['session', 'context_type', 'key']
+        indexes = [
+            models.Index(fields=['session', 'context_type']),
+        ]
+    
+    def __str__(self):
+        return f"{self.context_type} - {self.key}"

@@ -7,7 +7,10 @@ from .models import (
     MealPlan, 
     Task, 
     StudySession, 
-    WellnessActivity
+    WellnessActivity,
+    Event,
+    AuditLog,
+    AgentContext
 )
 
 
@@ -76,3 +79,36 @@ class WellnessActivityAdmin(admin.ModelAdmin):
     list_display = ['activity_type', 'duration', 'intensity', 'recorded_at', 'user']
     list_filter = ['activity_type', 'recorded_at']
     search_fields = ['notes']
+
+
+@admin.register(Event)
+class EventAdmin(admin.ModelAdmin):
+    list_display = ['event_type', 'session', 'user', 'timestamp', 'parent_event']
+    list_filter = ['event_type', 'timestamp']
+    search_fields = ['payload']
+    readonly_fields = ['timestamp']
+    
+    def has_add_permission(self, request):
+        return False  # Events are created by the system
+
+
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    list_display = ['action_type', 'action', 'user', 'resource', 'success', 'timestamp']
+    list_filter = ['action_type', 'success', 'timestamp']
+    search_fields = ['action', 'resource', 'details']
+    readonly_fields = ['timestamp']
+    
+    def has_add_permission(self, request):
+        return False  # Audit logs are created by the system
+    
+    def has_delete_permission(self, request, obj=None):
+        return False  # Audit logs should not be deleted
+
+
+@admin.register(AgentContext)
+class AgentContextAdmin(admin.ModelAdmin):
+    list_display = ['session', 'context_type', 'key', 'expires_at', 'updated_at']
+    list_filter = ['context_type', 'updated_at']
+    search_fields = ['key', 'value']
+    readonly_fields = ['created_at', 'updated_at']

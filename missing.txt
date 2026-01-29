@@ -1,0 +1,35 @@
+1. Orchestrator (Needs Enhancement)
+❌ Intent classification/understanding
+❌ Context management system
+❌ Audit logging
+❌ Multi-agent coordination
+
+2. Planner Agent (Not Started)
+❌ Goal → weekly task breakdown
+❌ Calendar scheduling
+❌ Time/energy/deadline constraints
+❌ Integration with Task model
+
+3. Habit Coach Agent (Not Started)
+❌ Habit model & tracking
+❌ Streak calculation
+❌ Context-aware reminders
+❌ Nudge 
+
+4. Knowledge Agent (Not Started)
+❌ Note storage model
+❌ Vector embeddings
+❌ Semantic search/retrieval
+❌ Citation & linking system
+
+5. Shopping/Recipe Agent (50% Done)
+✅ Basic meal planning
+❌ Budget tracking
+❌ Shopping list generation
+❌ Recipe database
+
+6. Message Bus Pattern (Not Started)
+❌ Event system architecture
+❌ Event types (INTENT_RECEIVED, etc.)
+❌ Event handlers
+❌ Audit trail logging
