@@ -2,6 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
 from . import auth_views
+from . import orchestrator_views
 
 router = DefaultRouter()
 router.register(r'sessions', views.AgentSessionViewSet, basename='agent-session')
@@ -17,6 +18,12 @@ urlpatterns = [
     path('auth/login/', auth_views.login, name='login'),
     path('auth/profile/', auth_views.get_user_profile, name='user-profile'),
     path('auth/profile/update/', auth_views.update_user_profile, name='update-profile'),
+    
+    # Orchestrator endpoints
+    path('chat/', orchestrator_views.chat, name='chat'),
+    path('agents/', orchestrator_views.get_available_agents, name='available-agents'),
+    path('my-sessions/', orchestrator_views.get_user_sessions, name='user-sessions'),
+    path('sessions/<str:session_id>/messages/', orchestrator_views.get_session_messages, name='session-messages'),
     
     # Agent and data endpoints
     path('', include(router.urls)),
