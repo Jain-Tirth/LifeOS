@@ -5,6 +5,8 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta
 from agents.models import AgentContext, AgentSession, Message
 from django.utils import timezone
+from django.db import models
+from asgiref.sync import sync_to_async
 import json
 import logging
 
@@ -30,23 +32,27 @@ class ContextManager:
         Returns:
             Dictionary of context data
         """
-        query = AgentContext.objects.filter(session=self.session)
+        @sync_to_async
+        def _get_contexts():
+            query = AgentContext.objects.filter(session=self.session)
+            
+            # Filter expired contexts
+            query = query.filter(
+                models.Q(expires_at__isnull=True) | models.Q(expires_at__gt=timezone.now())
+            )
+            
+            if context_type:
+                query = query.filter(context_type=context_type)
+            
+            contexts = {}
+            for ctx in query:
+                if ctx.context_type not in contexts:
+                    contexts[ctx.context_type] = {}
+                contexts[ctx.context_type][ctx.key] = ctx.value
+            
+            return contexts
         
-        # Filter expired contexts
-        query = query.filter(
-            models.Q(expires_at__isnull=True) | models.Q(expires_at__gt=timezone.now())
-        )
-        
-        if context_type:
-            query = query.filter(context_type=context_type)
-        
-        contexts = {}
-        for ctx in query:
-            if ctx.context_type not in contexts:
-                contexts[ctx.context_type] = {}
-            contexts[ctx.context_type][ctx.key] = ctx.value
-        
-        return contexts
+        return await _get_contexts()
     
     async def set_context(
         self,
@@ -71,7 +77,7 @@ class ContextManager:
         if expires_in_hours:
             expires_at = timezone.now() + timedelta(hours=expires_in_hours)
         
-        context, created = AgentContext.objects.update_or_create(
+        context, created = await sync_to_async(AgentContext.objects.update_or_create)(
             session=self.session,
             context_type=context_type,
             key=key,
@@ -96,18 +102,22 @@ class ContextManager:
         Returns:
             List of message dictionaries
         """
-        messages = Message.objects.filter(
-            session=self.session
-        ).order_by('-created_at')[:limit]
+        @sync_to_async
+        def _get_messages():
+            messages = Message.objects.filter(
+                session=self.session
+            ).order_by('-created_at')[:limit]
+            
+            return [
+                {
+                    'role': msg.role,
+                    'content': msg.content,
+                    'timestamp': msg.created_at.isoformat()
+                }
+                for msg in reversed(list(messages))
+            ]
         
-        return [
-            {
-                'role': msg.role,
-                'content': msg.content,
-                'timestamp': msg.created_at.isoformat()
-            }
-            for msg in reversed(messages)
-        ]
+        return await _get_messages()
     
     async def get_user_preferences(self) -> Dict[str, Any]:
         """
