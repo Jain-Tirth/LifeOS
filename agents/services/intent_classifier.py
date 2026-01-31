@@ -2,14 +2,14 @@
 Intent classifier for determining user intent and routing to appropriate agents
 """
 from typing import Dict, Any, List, Optional
-from google.genai import types
-from google.adk.models.google_llm import Gemini
+import google.generativeai as genai
 from django.conf import settings
+from asgiref.sync import sync_to_async
 import json
 import logging
+import os
 
 logger = logging.getLogger(__name__)
-
 
 class IntentClassifier:
     """
@@ -17,17 +17,21 @@ class IntentClassifier:
     """
     
     AGENT_INTENTS = {
-        'meal_planner': [
-            'meal planning',
-            'recipe suggestions',
-            'cooking',
-            'food preferences',
-            'diet',
-            'nutrition',
-            'grocery',
-            'meal prep'
+        'study_agent': [
+            'study',
+            'learning',
+            'exam preparation',
+            'notes',
+            'remember',
+            'recall',
+            'revision',
+            'syllabus',
+            'summarize',
+            'concepts',
+            'semantic search',
+            'study schedule'
         ],
-        'planner': [
+        'productivity_agent': [
             'task management',
             'scheduling',
             'calendar',
@@ -35,27 +39,12 @@ class IntentClassifier:
             'deadlines',
             'productivity',
             'time management',
-            'project planning'
+            'project planning',
+            'weekly plan',
+            'todo',
+            'organize work'
         ],
-        'habit_coach': [
-            'habits',
-            'routine',
-            'streak',
-            'behavior change',
-            'daily practices',
-            'consistency',
-            'reminders'
-        ],
-        'knowledge': [
-            'notes',
-            'remember',
-            'recall',
-            'information',
-            'search notes',
-            'what did I write',
-            'find information'
-        ],
-        'wellness': [
+        'wellness_agent': [
             'exercise',
             'meditation',
             'sleep',
@@ -63,19 +52,37 @@ class IntentClassifier:
             'health',
             'fitness',
             'wellbeing',
-            'mental health'
+            'mental health',
+            'habits',
+            'routine',
+            'streak',
+            'wellness tracking'
+        ],
+        'shopping_agent': [
+            'meal planning',
+            'recipe suggestions',
+            'cooking',
+            'food preferences',
+            'diet',
+            'nutrition',
+            'grocery',
+            'meal prep',
+            'shopping list',
+            'budget',
+            'expenses',
+            'meal budget'
         ]
     }
     
     def __init__(self):
-        retry_config = types.HttpRetryOptions(
-            attempts=3,
-            exp_base=2,
-            initial_delay=1,
-            max_delay=10,
-            http_status_codes=[429, 500, 503, 504]
-        )
-        self.model = Gemini(model="gemini-2.0-flash-lite", retry_options=retry_config)
+        # Configure Gemini API
+        api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
+        if not api_key:
+            logger.warning("No Google API key found. Intent classification will use fallback.")
+        else:
+            genai.configure(api_key=api_key)
+        
+        self.model = genai.GenerativeModel('models/gemini-2.5-flash')
     
     async def classify_intent(
         self, 
@@ -104,11 +111,10 @@ class IntentClassifier:
         prompt = f"""Analyze the following user message and classify the intent to route to the appropriate agent.
 
 Available agents and their capabilities:
-- meal_planner: Meal planning, recipes, nutrition, grocery lists, cooking advice
-- planner: Task management, scheduling, goals, deadlines, productivity, time management
-- habit_coach: Habit tracking, routines, streaks, behavior change, reminders
-- knowledge: Note storage, information retrieval, search through saved notes
-- wellness: Exercise tracking, meditation, sleep, mood, health monitoring
+- study_agent: Learning support, note organization, exam prep, study schedules, concept summarization, semantic search
+- productivity_agent: Task management, scheduling, goal setting, calendar integration, time management, progress tracking
+- wellness_agent: Exercise tracking, meditation, sleep, mood, health monitoring, habit streaks, wellness routines
+- shopping_agent: Meal planning, recipes, nutrition, grocery lists, shopping budgets, expense tracking
 
 User message: "{user_message}"
 
@@ -124,14 +130,15 @@ Respond ONLY with valid JSON in this exact format:
 }}
 
 Rules:
-- primary_agent must be one of: meal_planner, planner, habit_coach, knowledge, wellness
+- primary_agent must be one of: study_agent, productivity_agent, wellness_agent, shopping_agent
 - confidence is 0.0 to 1.0
 - secondary_agents is optional array for multi-agent tasks
 - is_multi_agent is true if multiple agents needed
 """
         
         try:
-            response = await self.model.generate_content_async(prompt)
+            # Generate content synchronously, wrapped for async context
+            response = await sync_to_async(self.model.generate_content)(prompt)
             
             # Parse JSON response
             response_text = response.text.strip()

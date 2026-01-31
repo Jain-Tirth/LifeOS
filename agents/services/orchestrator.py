@@ -3,10 +3,14 @@ Enhanced agent orchestrator for coordinating multiple AI agents in the LifeOS sy
 """
 from typing import Dict, Any, Optional, List
 from agents.models import AgentSession, Message, User
-from .meal_planner import meal_agent_runner
+from .shopping_agent import shopping_agent_runner
+from .study_agent import study_agent_runner
+from .productivity_agent import productivity_agent_runner
+from .wellness_agent import wellness_agent_runner
 from .event_bus import event_bus, audit_logger
 from .intent_classifier import intent_classifier
 from .context_manager import ContextManager
+from asgiref.sync import sync_to_async
 import logging
 import uuid
 
@@ -21,12 +25,10 @@ class EnhancedOrchestrator:
     
     def __init__(self):
         self.agents = {
-            'meal_planner': meal_agent_runner,
-            # Other agents will be added here
-            # 'planner': planner_agent_runner,
-            # 'habit_coach': habit_coach_runner,
-            # 'knowledge': knowledge_agent_runner,
-            # 'wellness': wellness_agent_runner,
+            'shopping_agent': shopping_agent_runner,
+            'study_agent': study_agent_runner,
+            'productivity_agent': productivity_agent_runner,
+            'wellness_agent': wellness_agent_runner,
         }
     
     async def process_message(
@@ -53,7 +55,7 @@ class EnhancedOrchestrator:
         try:
             # Create or get session
             if not session:
-                session = AgentSession.objects.create(
+                session = await sync_to_async(AgentSession.objects.create)(
                     user=user,
                     session_id=str(uuid.uuid4()),
                     agent_type='orchestrator'
@@ -72,7 +74,7 @@ class EnhancedOrchestrator:
             )
             
             # Save user message
-            Message.objects.create(
+            await sync_to_async(Message.objects.create)(
                 session=session,
                 role='user',
                 content=message
@@ -164,7 +166,7 @@ class EnhancedOrchestrator:
             )
             
             # Save agent message
-            Message.objects.create(
+            await sync_to_async(Message.objects.create)(
                 session=session,
                 role='agent',
                 content=str(agent_response)
@@ -182,7 +184,7 @@ class EnhancedOrchestrator:
             )
             
             # Step 6: AUDIT_LOGGED
-            audit_logger.log_agent_action(
+            await sync_to_async(audit_logger.log_agent_action)(
                 action='Agent Message Processed',
                 session=session,
                 details={
@@ -219,7 +221,7 @@ class EnhancedOrchestrator:
             
             # Log error
             if session:
-                audit_logger.log_agent_action(
+                await sync_to_async(audit_logger.log_agent_action)(
                     action='Agent Message Processing Failed',
                     session=session,
                     details={
@@ -283,7 +285,7 @@ class EnhancedOrchestrator:
     
     def get_all_agent_types(self) -> List[str]:
         """Return list of all planned agent types (implemented + planned)"""
-        return ['meal_planner', 'planner', 'habit_coach', 'knowledge', 'wellness']
+        return ['study_agent', 'productivity_agent', 'wellness_agent', 'shopping_agent']
 
 
 # Singleton instance

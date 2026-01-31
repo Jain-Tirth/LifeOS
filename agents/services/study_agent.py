@@ -1,4 +1,6 @@
-## Import ADK components
+"""
+Study Agent - Supports learning and knowledge management
+"""
 import asyncio
 from google.adk.agents import Agent
 from google.adk.models.google_llm import Gemini
@@ -35,47 +37,42 @@ retry_config = types.HttpRetryOptions(
     http_status_codes=[429, 500, 503, 504],
 )
 
-wellness_agent = Agent(
-    name="WellnessAgent",
+study_agent = Agent(
+    name="StudyAgent",
     model=Gemini(model="gemini-2.0-flash-lite", retry_options=retry_config),
-    description="A helpful assistant for wellness, health tracking, and habit formation.",
-    instruction="""You are a wellness and health agent. You help users:
-    1. Build and maintain healthy habits and routines
-    2. Track wellness activities (exercise, meditation, sleep)
-    3. Monitor mood and mental health
-    4. Create sustainable wellness plans
-    5. Suggest habit streaks and milestones
-    6. Balance work and rest for optimal wellbeing
-    7. Provide personalized health recommendations
-    8. Track progress and celebrate achievements
+    description="A helpful assistant for learning, study planning, and knowledge management.",
+    instruction="""You are a study and learning agent. You help users:
+    1. Organize study goals into manageable milestones
+    2. Break down complex topics into key concepts
+    3. Create study schedules and revision plans
+    4. Summarize notes and highlight important points
+    5. Suggest effective learning strategies
+    6. Prepare for exams with topic breakdowns
+    7. Track learning progress
     
-    Be supportive, holistic, and balanced. Help users improve their wellbeing by:
-    - Starting with small, achievable habits
-    - Focusing on consistency over perfection
-    - Celebrating progress and streaks
-    - Addressing both physical and mental health
-    - Integrating wellness with daily life
-    - Providing science-backed suggestions
-    - Adapting to individual needs and preferences
+    Be encouraging, pedagogical, and structured. Help users learn effectively by:
+    - Breaking complex topics into digestible chunks
+    - Creating actionable study plans
+    - Providing clear explanations
+    - Suggesting resources when helpful
+    - Adapting to different learning styles
     
-    When a user asks for wellness help, inquire about:
-    - Current health goals or concerns
-    - Existing routines and habits
-    - Sleep patterns and quality
-    - Activity levels and exercise preferences
-    - Stress levels and mood patterns
-    - Available time for wellness activities
-    - Any health conditions or restrictions""",
+    When a user asks for help with studying, ask about:
+    - What subject/topic they're studying
+    - Their timeline (exam dates, deadlines)
+    - Current knowledge level
+    - Preferred learning style
+    - Specific challenges they're facing""",
     tools=[google_search],
 )
 
-class WellnessAgentRunner():
+class StudyAgentRunner():
     def __init__(self, agent: Agent):
         self.agent = agent
         self.session_service = InMemorySessionService()
         self.runner = Runner(
             agent=agent,
-            app_name="WellnessAgentApp",
+            app_name="StudyAgentApp",
             memory_service=InMemoryMemoryService(),
             session_service=self.session_service,
         )
@@ -106,10 +103,8 @@ class WellnessAgentRunner():
               return result
 
           except Exception as e:
-              print(f"Error running wellness agent: {e}")
+              print(f"Error running study agent: {e}")
               return None
-# Create a singleton instance
-wellness_agent_runner = WellnessAgentRunner(wellness_agent)
-    
 
-    
+# Create a singleton instance
+study_agent_runner = StudyAgentRunner(study_agent)

@@ -35,7 +35,7 @@ LifeOS/
 │   ├── serializers.py        # Data serialization
 │   └── urls.py               # API routing
 ├── client/                   # Frontend (to be implemented)
-└── server/                   # Legacy server code (to be migrated)
+
 ```
 
 ## Setup Instructions

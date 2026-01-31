@@ -4,6 +4,7 @@ Event bus for handling system-wide events and message passing
 from typing import Dict, Any, Optional, Callable, List
 from datetime import datetime
 from agents.models import Event, AuditLog, AgentSession, User
+from asgiref.sync import sync_to_async
 import logging
 
 logger = logging.getLogger(__name__)
@@ -61,7 +62,7 @@ class EventBus:
             Created Event instance
         """
         # Create event record
-        event = Event.objects.create(
+        event = await sync_to_async(Event.objects.create)(
             event_type=event_type,
             session=session,
             user=user,
@@ -89,7 +90,7 @@ class EventBus:
                 # Publish error event
                 await self.publish(
                     'ERROR_OCCURRED',
-                    {
+                    payload={
                         'original_event': event_type,
                         'error': str(e),
                         'handler': handler.__name__
