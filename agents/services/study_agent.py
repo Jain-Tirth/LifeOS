@@ -77,34 +77,86 @@ class StudyAgentRunner():
             session_service=self.session_service,
         )
     
-        async def run_agent(self, user_input: str, session_id: str = "default_user"):
-          try:
-              # Create session if it doesn't exist
-              if not self.session_service.get_session(session_id):
-                  self.session_service.create_session(
-                      session_id=session_id,
-                      user_id=session_id,
-                  )
-              
-              response_gen = self.runner.run(
-                  user_id=session_id,
-                  session_id=session_id,
-                  new_message=Content(role="user", parts=[Part(text=user_input)]),
-              )
+    async def run_agent(self, user_input: str, session_id: str = "default_user"):
+        try:
+            # Create session if it doesn't exist
+            if not self.session_service.get_session(session_id=session_id, app_name="StudyAgentApp", user_id=session_id):
+                self.session_service.create_session(
+                    session_id=session_id,
+                    app_name="StudyAgentApp",
+                    user_id=session_id,
+                )
+            
+            response_gen = self.runner.run(
+                user_id=session_id,
+                session_id=session_id,
+                new_message=Content(role="user", parts=[Part(text=user_input)]),
+            )
 
-              # Collect response from generator
-              result = ""
-              for chunk in response_gen:
-                  if hasattr(chunk, "text"):
-                      result += chunk.text
-                  else:
-                      result += str(chunk)
+            # Collect response from generator
+            result = ""
+            for chunk in response_gen:
+                if hasattr(chunk, "text"):
+                    result += chunk.text
+                else:
+                    result += str(chunk)
 
-              return result
+            return result
 
-          except Exception as e:
-              print(f"Error running study agent: {e}")
-              return None
+        except Exception as e:
+            print(f"Error running study agent: {e}")
+            return None
+    
+    async def run_agent_stream(self, user_input: str, session_id: str = "default_user"):
+        """Stream agent responses chunk by chunk"""
+        try:
+            print(f"[STUDY AGENT] run_agent_stream called with: {user_input[:50]}")
+            # Create session if it doesn't exist
+            if not self.session_service.get_session(session_id=session_id, app_name="StudyAgentApp", user_id=session_id):
+                print(f"[STUDY AGENT] Creating session: {session_id}")
+                self.session_service.create_session(
+                    session_id=session_id,
+                    app_name="StudyAgentApp",
+                    user_id=session_id,
+                )
+            
+            print(f"[STUDY AGENT] Starting runner.run()")
+            response_gen = self.runner.run(
+                user_id=session_id,
+                session_id=session_id,
+                new_message=Content(role="user", parts=[Part(text=user_input)]),
+            )
+
+            # Yield chunks as they arrive
+            chunk_count = 0
+            print(f"[STUDY AGENT] Starting to iterate over response_gen")
+            for chunk in response_gen:
+                chunk_count += 1
+                print(f"[STUDY AGENT] Raw chunk {chunk_count}: {type(chunk)}")
+                # Extract text from Event.content.parts
+                if hasattr(chunk, "content") and chunk.content and hasattr(chunk.content, "parts"):
+                    for part in chunk.content.parts:
+                        if hasattr(part, "text") and part.text:
+                            print(f"[STUDY AGENT] Text length: {len(part.text)}")
+                            # Split text into smaller chunks for streaming effect
+                            text = part.text
+                            chunk_size = 50  # Characters per chunk
+                            for i in range(0, len(text), chunk_size):
+                                chunk_text = text[i:i+chunk_size]
+                                print(f"[STUDY AGENT] Yielding chunk: {chunk_text[:30]}...")
+                                yield chunk_text
+                else:
+                    print(f"[STUDY AGENT] Chunk has no content.parts")
+            
+            print(f"[STUDY AGENT] Generator exhausted after {chunk_count} chunks")
+
+        except Exception as e:
+            print(f"[STUDY AGENT] Error streaming: {e}")
+            import traceback
+            traceback.print_exc()
+            yield None
+            print(f"Error streaming study agent: {e}")
+            yield None
 
 # Create a singleton instance
 study_agent_runner = StudyAgentRunner(study_agent)

@@ -80,34 +80,63 @@ class WellnessAgentRunner():
             session_service=self.session_service,
         )
     
-        async def run_agent(self, user_input: str, session_id: str = "default_user"):
-          try:
-              # Create session if it doesn't exist
-              if not self.session_service.get_session(session_id):
-                  self.session_service.create_session(
-                      session_id=session_id,
-                      user_id=session_id,
-                  )
-              
-              response_gen = self.runner.run(
-                  user_id=session_id,
-                  session_id=session_id,
-                  new_message=Content(role="user", parts=[Part(text=user_input)]),
-              )
+    async def run_agent(self, user_input: str, session_id: str = "default_user"):
+        try:
+            # Create session if it doesn't exist
+            if not self.session_service.get_session(session_id):
+                self.session_service.create_session(
+                    session_id=session_id,
+                    user_id=session_id,
+                )
+            
+            response_gen = self.runner.run(
+                user_id=session_id,
+                session_id=session_id,
+                new_message=Content(role="user", parts=[Part(text=user_input)]),
+            )
 
-              # Collect response from generator
-              result = ""
-              for chunk in response_gen:
-                  if hasattr(chunk, "text"):
-                      result += chunk.text
-                  else:
-                      result += str(chunk)
+            # Collect response from generator
+            result = ""
+            for chunk in response_gen:
+                if hasattr(chunk, "text"):
+                    result += chunk.text
+                else:
+                    result += str(chunk)
 
-              return result
+            return result
 
-          except Exception as e:
-              print(f"Error running wellness agent: {e}")
-              return None
+        except Exception as e:
+            print(f"Error running wellness agent: {e}")
+            return None
+    
+    async def run_agent_stream(self, user_input: str, session_id: str = "default_user"):
+        """Stream agent responses chunk by chunk"""
+        try:
+            # Create session if it doesn't exist
+            if not self.session_service.get_session(session_id=session_id, app_name="WellnessAgentApp", user_id=session_id):
+                self.session_service.create_session(
+                    session_id=session_id,
+                    app_name="WellnessAgentApp",
+                    user_id=session_id,
+                )
+            
+            response_gen = self.runner.run(
+                user_id=session_id,
+                session_id=session_id,
+                new_message=Content(role="user", parts=[Part(text=user_input)]),
+            )
+
+            # Yield chunks as they arrive
+            for chunk in response_gen:
+                # Extract text from Event.content.parts
+                if hasattr(chunk, "content") and chunk.content and hasattr(chunk.content, "parts"):
+                    for part in chunk.content.parts:
+                        if hasattr(part, "text") and part.text:
+                            yield part.text
+
+        except Exception as e:
+            print(f"Error streaming wellness agent: {e}")
+            yield None
 # Create a singleton instance
 wellness_agent_runner = WellnessAgentRunner(wellness_agent)
     

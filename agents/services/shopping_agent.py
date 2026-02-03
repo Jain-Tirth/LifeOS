@@ -2,7 +2,7 @@
 import asyncio
 from google.adk.agents import Agent
 from google.adk.models.google_llm import Gemini
-from google.adk.runners import Runner, InMemoryRunner
+from google.adk.runners import Runner
 from google.adk.memory import InMemoryMemoryService
 from google.adk.sessions import InMemorySessionService
 from google.adk.tools import google_search
@@ -90,5 +90,43 @@ class ShoppingAgentRunner:
         except Exception as e:
             print(f"Error running shopping agent: {e}")
             return None
+    
+    async def run_agent_stream(self, user_input: str, session_id: str = "default_user"):
+        """Stream agent responses chunk by chunk"""
+        try:
+            # Create session if it doesn't exist
+            if not self.session_service.get_session(session_id=session_id, app_name="ShoppingAgentApp", user_id=session_id):
+                self.session_service.create_session(
+                    session_id=session_id,
+                    user_id=session_id,
+                    app_name="ShoppingAgentApp",
+                )
+            
+            print(f"[SHOPPING AGENT] Starting runner.run()")
+            response_gen = self.runner.run(
+                user_id=session_id,
+                session_id=session_id,
+                new_message=Content(role="user", parts=[Part(text=user_input)]),
+            )
+
+            # Yield chunks as they arrive
+            chunk_count = 0
+            for chunk in response_gen:
+                chunk_count += 1
+                print(f"[SHOPPING AGENT] Raw chunk {chunk_count}")
+                # Extract text from Event.content.parts
+                if hasattr(chunk, "content") and chunk.content and hasattr(chunk.content, "parts"):
+                    for part in chunk.content.parts:
+                        if hasattr(part, "text") and part.text:
+                            print(f"[SHOPPING AGENT] Yielding text: {part.text[:50]}...")
+                            yield part.text
+                else:
+                    print(f"[SHOPPING AGENT] Chunk has no content.parts")
+            
+            print(f"[SHOPPING AGENT] Generator exhausted after {chunk_count} chunks")
+
+        except Exception as e:
+            print(f"Error streaming shopping agent: {e}")
+            yield None
 # Create a singleton instance
 shopping_agent_runner = ShoppingAgentRunner(shopping_agent)
