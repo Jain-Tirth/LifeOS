@@ -21,6 +21,7 @@ urlpatterns = [
     
     # Orchestrator endpoints
     path('chat/', orchestrator_views.chat, name='chat'),
+    path('chat/stream/', orchestrator_views.chat_stream, name='chat-stream'),
     path('agents/', orchestrator_views.get_available_agents, name='available-agents'),
     path('my-sessions/', orchestrator_views.get_user_sessions, name='user-sessions'),
     path('sessions/<str:session_id>/messages/', orchestrator_views.get_session_messages, name='session-messages'),

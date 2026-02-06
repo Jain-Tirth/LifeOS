@@ -250,7 +250,7 @@
                 <div class="message-avatar">🤖</div>
                 <div>
                     <div class="message-content">
-                        👋 Welcome to LifeOS! I'm your AI assistant powered by multiple specialized agents:
+                        Welcome to LifeOS! I'm your AI assistant powered by multiple specialized agents:
                         <br><br>
                         • <strong>Study Agent</strong> - Learning & exam prep<br>
                         • <strong>Productivity Agent</strong> - Tasks & scheduling<br>
@@ -266,7 +266,7 @@
         
         <div class="input-area">
             <div class="input-container">
-                <input type="text" id="messageInput" placeholder="Ask me anything..." autocomplete="off">
+                <input type="text" id="messageInput" placeholder="Ask me anything..." autocomplete="on">
                 <button id="sendBtn">Send</button>
             </div>
         </div>
@@ -357,7 +357,32 @@
             showTyping();
             
             try {
-                const response = await fetch('/api/chat/', {
+                console.log('Sending message:', message);
+                
+                // Create message element for streaming
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message agent';
+                const avatar = document.createElement('div');
+                avatar.className = 'message-avatar';
+                avatar.textContent = '🤖';
+                const contentWrapper = document.createElement('div');
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'message-content';
+                contentDiv.textContent = '';
+                const meta = document.createElement('div');
+                meta.className = 'message-meta';
+                
+                contentWrapper.appendChild(contentDiv);
+                contentWrapper.appendChild(meta);
+                messageDiv.appendChild(avatar);
+                messageDiv.appendChild(contentWrapper);
+                
+                let agentName = 'Agent';
+                let fullResponse = '';
+                let messageAdded = false;
+                
+                // Use fetch with streaming for POST request
+                const response = await fetch('/api/chat/stream/', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -369,24 +394,66 @@
                     })
                 });
                 
-                hideTyping();
+                console.log('Response status:', response.status);
                 
                 if (!response.ok) {
+                    hideTyping();
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 
-                const data = await response.json();
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
                 
-                if (data.success) {
-                    sessionId = data.session_id;
-                    const agentName = data.agent.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
-                    currentAgentBadge.textContent = agentName;
+                while (true) {
+                    const {done, value} = await reader.read();
+                    if (done) {
+                        console.log('Stream ended');
+                        break;
+                    }
                     
-                    addMessage(data.response, false, agentName);
-                } else {
-                    showError(data.error || 'Unknown error occurred');
+                    buffer += decoder.decode(value, {stream: true});
+                    const lines = buffer.split('\n');
+                    
+                    // Keep last incomplete line in buffer
+                    buffer = lines.pop() || '';
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                console.log('Received:', data);
+                                
+                                if (data.type === 'agent_selected') {
+                                    agentName = data.agent.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+                                    currentAgentBadge.textContent = agentName;
+                                    meta.textContent = `${agentName} • ${new Date().toLocaleTimeString()}`;
+                                } else if (data.type === 'chunk') {
+                                    // Hide typing when first chunk arrives
+                                    if (!messageAdded) {
+                                        hideTyping();
+                                        chatArea.appendChild(messageDiv);
+                                        messageAdded = true;
+                                    }
+                                    fullResponse += data.content;
+                                    contentDiv.textContent = fullResponse;
+                                    chatArea.scrollTop = chatArea.scrollHeight;
+                                } else if (data.type === 'error') {
+                                    hideTyping();
+                                    showError(data.error);
+                                } else if (data.type === 'done') {
+                                    console.log('Done, full response:', fullResponse);
+                                    break;
+                                }
+                            } catch (e) {
+                                console.error('JSON parse error:', e, 'Line:', line);
+                            }
+                        }
+                    }
                 }
+                
             } catch (error) {
+                console.error('Error:', error);
                 hideTyping();
                 showError(error.message);
             } finally {
