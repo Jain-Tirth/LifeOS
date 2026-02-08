@@ -7,6 +7,7 @@ from .shopping_agent import shopping_agent_runner
 from .study_agent import study_agent_runner
 from .productivity_agent import productivity_agent_runner
 from .wellness_agent import wellness_agent_runner
+from .meal_planner_agent import meal_planner_agent_runner
 from .event_bus import event_bus, audit_logger
 from .intent_classifier import intent_classifier
 from .context_manager import ContextManager
@@ -29,6 +30,7 @@ class EnhancedOrchestrator:
             'study_agent': study_agent_runner,
             'productivity_agent': productivity_agent_runner,
             'wellness_agent': wellness_agent_runner,
+            'meal_planner_agent': meal_planner_agent_runner,
         }
     
     async def process_message(

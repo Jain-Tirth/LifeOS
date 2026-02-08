@@ -59,18 +59,33 @@ class IntentClassifier:
             'wellness tracking'
         ],
         'shopping_agent': [
+            'shopping list',
+            'grocery shopping',
+            'budget',
+            'expenses',
+            'cost tracking',
+            'price comparison',
+            'deals',
+            'discounts',
+            'shopping budget'
+        ],
+        'meal_planner_agent': [
             'meal planning',
             'recipe suggestions',
             'cooking',
             'food preferences',
             'diet',
             'nutrition',
-            'grocery',
             'meal prep',
-            'shopping list',
-            'budget',
-            'expenses',
-            'meal budget'
+            'weekly meal plan',
+            'recipes',
+            'dietary restrictions',
+            'vegan',
+            'vegetarian',
+            'keto',
+            'gluten-free',
+            'balanced diet',
+            'nutritional info'
         ]
     }
     
