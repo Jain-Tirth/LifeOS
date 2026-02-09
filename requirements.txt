@@ -10,9 +10,8 @@ python-dotenv==1.0.0
 # Database (optional - only if using PostgreSQL)
 # psycopg2-binary==2.9.9  # Uncomment if you need PostgreSQL support
 
-# Google AI/ADK dependencies
-google-adk==0.1.0  # Adjust version as needed
-google-generativeai==0.3.2
+# Groq API for AI agents (fast, high rate limits)
+groq==0.11.0
 
 # Async support
 asgiref==3.7.2
