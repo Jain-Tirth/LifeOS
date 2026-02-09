@@ -2,7 +2,7 @@
 Intent classifier for determining user intent and routing to appropriate agents
 """
 from typing import Dict, Any, List, Optional
-import google.generativeai as genai
+from groq import Groq
 from django.conf import settings
 from asgiref.sync import sync_to_async
 import json
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class IntentClassifier:
     """
-    Classifies user intent using Gemini AI to route messages to appropriate agents
+    Classifies user intent using Groq AI to route messages to appropriate agents
     """
     
     AGENT_INTENTS = {
@@ -75,14 +75,15 @@ class IntentClassifier:
     }
     
     def __init__(self):
-        # Configure Gemini API
-        api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
+        # Configure Groq API
+        api_key = os.getenv('GROQ_API_KEY') or getattr(settings, 'GROQ_API_KEY', None)
         if not api_key:
-            logger.warning("No Google API key found. Intent classification will use fallback.")
+            logger.warning("No Groq API key found. Intent classification will use fallback.")
+            self.client = None
         else:
-            genai.configure(api_key=api_key)
+            self.client = Groq(api_key=api_key)
         
-        self.model = genai.GenerativeModel('models/gemini-2.5-flash')
+        self.model = 'llama-3.3-70b-versatile'  # Fast and accurate for classification
     
     async def classify_intent(
         self, 
@@ -137,11 +138,29 @@ Rules:
 """
         
         try:
-            # Generate content synchronously, wrapped for async context
-            response = await sync_to_async(self.model.generate_content)(prompt)
+            if not self.client:
+                # No API key configured, use fallback
+                return self._fallback_classification(user_message)
+            
+            # Call Groq API
+            chat_completion = self.client.chat.completions.create(
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are an intent classification system. Always respond with valid JSON only."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                model=self.model,
+                temperature=0.1,  # Low temperature for consistent classification
+                max_tokens=500,
+            )
             
             # Parse JSON response
-            response_text = response.text.strip()
+            response_text = chat_completion.choices[0].message.content.strip()
             
             # Remove markdown code blocks if present
             if response_text.startswith('```'):
