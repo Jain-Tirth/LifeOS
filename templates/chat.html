@@ -277,14 +277,28 @@
         let token = null;
         let sessionId = null;
         
+        // Get CSRF token from cookie
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        
         // Get token from localStorage or prompt login
         window.addEventListener('DOMContentLoaded', () => {
             token = localStorage.getItem('lifeos_token');
             if (!token) {
-                token = prompt('Enter your JWT token (from /api/auth/login):');
-                if (token) {
-                    localStorage.setItem('lifeos_token', token);
-                }
+                // Try session authentication first (if logged into Django)
+                console.log('No JWT token found, will try session authentication');
             }
         });
         
@@ -350,7 +364,7 @@
         
         async function sendMessage() {
             const message = messageInput.value.trim();
-            if (!message || !token) return;
+            if (!message) return;
             
             addMessage(message, true);
             messageInput.value = '';
@@ -382,13 +396,21 @@
                 let fullResponse = '';
                 let messageAdded = false;
                 
+                // Prepare headers
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                };
+                
+                // Add JWT token if available
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+                
                 // Use fetch with streaming for POST request
                 const response = await fetch('/api/chat/stream/', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
+                    headers: headers,
                     body: JSON.stringify({
                         message: message,
                         session_id: sessionId
