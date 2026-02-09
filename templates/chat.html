@@ -268,6 +268,7 @@
             <div class="input-container">
                 <input type="text" id="messageInput" placeholder="Ask me anything..." autocomplete="off">
                 <button id="sendBtn">Send</button>
+                <button id="loginBtn" style="display:none; margin-left: 8px; background: #10b981; padding: 12px 20px; border-radius: 24px; color: white; border: none; font-weight: 600; cursor: pointer;">Login</button>
             </div>
         </div>
     </div>
@@ -290,7 +291,54 @@
         const chatArea = document.getElementById('chatArea');
         const messageInput = document.getElementById('messageInput');
         const sendBtn = document.getElementById('sendBtn');
+        const loginBtn = document.getElementById('loginBtn');
         const currentAgentBadge = document.getElementById('currentAgent');
+        
+        // Show login button if no token
+        if (!token) {
+            loginBtn.style.display = 'inline-block';
+        }
+        
+        // Handle login
+        loginBtn.addEventListener('click', async () => {
+            const email = prompt('Enter email:');
+            const password = prompt('Enter password:');
+            
+            if (!email || !password) return;
+            
+            try {
+                const response = await fetch('/api/auth/login/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    token = data.token;
+                    localStorage.setItem('lifeos_token', token);
+                    loginBtn.style.display = 'none';
+                    alert('✅ Login successful!');
+                    location.reload();
+                } else {
+                    const errorText = await response.text();
+                    console.log('Login error response:', errorText);
+                    try {
+                        const error = JSON.parse(errorText);
+                        console.log('Parsed error:', error);
+                        alert('❌ Login failed: ' + (error.error || error.detail || JSON.stringify(error)));
+                    } catch (e) {
+                        alert('❌ Login failed: ' + errorText);
+                    }
+                }
+            } catch (error) {
+                console.error('Login exception:', error);
+                alert('❌ Login error: ' + error.message);
+            }
+        });
         
         function addMessage(content, isUser = false, agent = null) {
             const messageDiv = document.createElement('div');
@@ -372,6 +420,18 @@
                 hideTyping();
                 
                 if (!response.ok) {
+                    hideTyping();
+                    if (response.status === 401) {
+                        showError('Authentication failed. Please click the Login button or login at /admin/');
+                        localStorage.removeItem('lifeos_token');
+                        token = null;
+                        loginBtn.style.display = 'inline-block';
+                        return;
+                    }
+                    if (response.status === 403) {
+                        showError('CSRF verification failed. Please refresh the page.');
+                        return;
+                    }
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 
