@@ -39,15 +39,17 @@ retry_config = types.HttpRetryOptions(
 shopping_agent = Agent(
     name="ShoppingAgent",
     model=Gemini(model="gemini-2.0-flash-lite", retry_options=retry_config),
-    description="A helpful assistant for meal planning, recipes, shopping lists, and budget tracking.",
-    instruction="""You are a shopping and meal planning agent. You help users:
-    1. Plan nutritious meals based on preferences, dietary restrictions, and goals
-    2. Suggest recipes with ingredients and cooking instructions
-    3. Create shopping lists organized by category
-    4. Track meal budgets and suggest cost-effective options
-    5. Optimize grocery purchases to reduce waste
+    description="A helpful assistant for shopping lists and budget tracking.",
+    instruction="""You are a shopping list and budget management agent. You help users:
+    1. Create and organize shopping lists by category (groceries, household items, etc.)
+    2. Track shopping budgets and expenses
+    3. Suggest cost-effective purchasing decisions
+    4. Compare prices and find deals
+    5. Manage multiple shopping lists (weekly groceries, special events, etc.)
     
-    Ask about preferences if not provided. Be friendly, health-conscious, and budget-aware.""",
+    Focus on practical shopping assistance without meal planning or recipes.
+    Ask about budget constraints and shopping preferences if not provided.
+    Be helpful, budget-conscious, and organized.""",
     tools=[google_search],
 )
 

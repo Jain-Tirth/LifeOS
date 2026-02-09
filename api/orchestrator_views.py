@@ -2,10 +2,13 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django.http import StreamingHttpResponse
 from agents.models import AgentSession
 from agents.services.orchestrator import orchestrator
 from .orchestrator_serializers import ChatMessageSerializer, ChatResponseSerializer
+from asgiref.sync import async_to_sync
 import asyncio
+import json
 
 
 @api_view(['POST'])
@@ -75,6 +78,110 @@ def chat(request):
             'success': False,
             'error': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def chat_stream(request):
+    """
+    Stream agent responses in real-time using Server-Sent Events (SSE)
+    
+    Request body:
+    {
+        "message": "I want to plan my meals for next week",
+        "session_id": "optional-session-id",  (optional)
+        "force_agent": "meal_planner"  (optional)
+    }
+    
+    Response: SSE stream with chunks of agent response
+    """
+    serializer = ChatMessageSerializer(data=request.data)
+    
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    message = serializer.validated_data['message']
+    session_id = serializer.validated_data.get('session_id')
+    force_agent = serializer.validated_data.get('force_agent')
+    
+    # Get or create session
+    session = None
+    if session_id:
+        try:
+            session = AgentSession.objects.get(
+                session_id=session_id,
+                user=request.user
+            )
+        except AgentSession.DoesNotExist:
+            def error_stream():
+                yield f"data: {json.dumps({'error': 'Session not found'})}\n\n"
+            return StreamingHttpResponse(
+                error_stream(),
+                content_type='text/event-stream',
+                status=404
+            )
+    
+    def event_stream():
+        """Generator function for SSE streaming"""
+        import queue
+        import threading
+        
+        q = queue.Queue()
+        exception_holder = {'exception': None}
+        
+        def run_async_gen():
+            """Run async generator in thread"""
+            async def collect():
+                try:
+                    async for chunk in orchestrator.process_message_stream(
+                        message=message,
+                        user=request.user,
+                        session=session,
+                        force_agent=force_agent
+                    ):
+                        q.put(('data', chunk))
+                except Exception as e:
+                    exception_holder['exception'] = e
+                    q.put(('error', str(e)))
+                finally:
+                    q.put(('done', None))
+            
+            asyncio.run(collect())
+        
+        # Start async generator in background thread
+        thread = threading.Thread(target=run_async_gen, daemon=True)
+        thread.start()
+        
+        # Yield chunks as they arrive from queue
+        try:
+            while True:
+                # Non-blocking get with timeout to allow checking if done
+                try:
+                    item = q.get(timeout=30)  # 30 second timeout
+                except queue.Empty:
+                    yield f"data: {{\"type\": \"error\", \"error\": \"Timeout waiting for response\"}}\n\n"
+                    break
+                
+                msg_type, data = item
+                
+                if msg_type == 'data':
+                    yield f"data: {json.dumps(data)}\n\n"
+                elif msg_type == 'error':
+                    yield f"data: {json.dumps({'error': data, 'type': 'error'})}\n\n"
+                    break
+                elif msg_type == 'done':
+                    yield "data: {\"type\": \"done\"}\n\n"
+                    break
+        finally:
+            thread.join(timeout=1)
+    
+    response = StreamingHttpResponse(
+        event_stream(),
+        content_type='text/event-stream'
+    )
+    response['Cache-Control'] = 'no-cache'
+    response['X-Accel-Buffering'] = 'no'
+    return response
 
 
 @api_view(['GET'])
