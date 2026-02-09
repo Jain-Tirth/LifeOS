@@ -3,11 +3,14 @@ Enhanced agent orchestrator for coordinating multiple AI agents in the LifeOS sy
 """
 from typing import Dict, Any, Optional, List
 from agents.models import AgentSession, Message, User
+
+# Import Groq-based agents (faster, better rate limits)
 from .shopping_agent import shopping_agent_runner
 from .study_agent import study_agent_runner
 from .productivity_agent import productivity_agent_runner
 from .wellness_agent import wellness_agent_runner
 from .meal_planner_agent import meal_planner_agent_runner
+
 from .event_bus import event_bus, audit_logger
 from .intent_classifier import intent_classifier
 from .context_manager import ContextManager

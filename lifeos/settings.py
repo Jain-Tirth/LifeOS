@@ -167,5 +167,8 @@ SIMPLE_JWT = {
 }
 
 
-# Gemini API Configuration
+# Gemini API Configuration (legacy)
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+
+# Groq API Configuration (primary - faster, better rate limits)
+GROQ_API_KEY = os.getenv('GROQ_API_KEY')
