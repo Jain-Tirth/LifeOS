@@ -33,6 +33,7 @@ class EnhancedOrchestrator:
             'study_agent': study_agent_runner,
             'productivity_agent': productivity_agent_runner,
             'wellness_agent': wellness_agent_runner,
+            'meal_planner_agent': meal_planner_agent_runner,
         }
     
     async def process_message(
@@ -239,6 +240,113 @@ class EnhancedOrchestrator:
             
             return {
                 'success': False,
+                'error': str(e)
+            }
+    
+    async def process_message_stream(
+        self,
+        message: str,
+        user: User,
+        session: Optional[AgentSession] = None,
+        force_agent: Optional[str] = None
+    ):
+        """
+        Stream agent responses in real-time.
+        Yields chunks of data for SSE streaming.
+        """
+        try:
+            # Create or get session
+            if not session:
+                session = await sync_to_async(AgentSession.objects.create)(
+                    user=user,
+                    session_id=str(uuid.uuid4()),
+                    agent_type='orchestrator'
+                )
+            
+            # Classify intent
+            if force_agent:
+                selected_agent = force_agent
+                intent_result = {
+                    'primary_agent': force_agent,
+                    'confidence': 1.0,
+                    'reasoning': 'Forced agent selection',
+                }
+            else:
+                context_manager = ContextManager(session)
+                conversation_history = await context_manager.get_conversation_history()
+                intent_result = await intent_classifier.classify_intent(
+                    message, 
+                    conversation_history
+                )
+                selected_agent = intent_result['primary_agent']
+            
+            # Yield agent info
+            yield {
+                'type': 'agent_selected',
+                'agent': selected_agent,
+                'intent': intent_result
+            }
+            
+            # Save user message
+            await sync_to_async(Message.objects.create)(
+                session=session,
+                role='user',
+                content=message
+            )
+            
+            # Check if agent exists
+            if selected_agent not in self.agents:
+                yield {
+                    'type': 'error',
+                    'error': f"Agent '{selected_agent}' not yet implemented"
+                }
+                return
+            
+            # Stream agent response
+            agent_runner = self.agents[selected_agent]
+            full_response = ""
+            
+            print(f"[ORCHESTRATOR] Starting stream from {selected_agent}")
+            
+            chunk_count = 0
+            async for chunk in agent_runner.run_agent_stream(
+                message, 
+                session_id=session.session_id
+            ):
+                if chunk:
+                    chunk_count += 1
+                    print(f"[ORCHESTRATOR] Chunk {chunk_count}: {chunk[:50]}...")
+                    full_response += chunk
+                    yield {
+                        'type': 'chunk',
+                        'content': chunk
+                    }
+            
+            print(f"[ORCHESTRATOR] Stream complete. {chunk_count} chunks, total length: {len(full_response)}")
+            
+            # Save agent message
+            await sync_to_async(Message.objects.create)(
+                session=session,
+                role='agent',
+                content=full_response
+            )
+            
+            # Log completion
+            await sync_to_async(audit_logger.log_agent_action)(
+                action='Agent Message Streamed',
+                session=session,
+                details={
+                    'agent': selected_agent,
+                    'message_length': len(message),
+                },
+                user=user,
+                success=True
+            )
+            
+        except Exception as e:
+            logger.error(f"Streaming error: {e}", exc_info=True)
+            yield {
+                'type': 'error',
                 'error': str(e)
             }
     
