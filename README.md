@@ -71,8 +71,10 @@ Create a `.env` file in the project root:
 ```env
 DJANGO_SECRET_KEY=your-secret-key-here
 DEBUG=True
-GEMINI_API_KEY=your-gemini-api-key-here
+GROQ_API_KEY=your-groq-api-key-here
 ```
+
+Get your free Groq API key from: https://console.groq.com/keys
 
 ### 5. Run migrations
 
