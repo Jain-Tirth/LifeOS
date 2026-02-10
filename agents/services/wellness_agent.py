@@ -20,9 +20,12 @@ def setup_ai_key():
         GEMINI_API_KEY = getattr(settings, 'GEMINI_API_KEY', os.getenv("GEMINI_API_KEY"))
         if GEMINI_API_KEY is None:
             raise ValueError("GEMINI_API_KEY not set")
+        
+        # Ensure GOOGLE_API_KEY is set for ADK components
+        os.environ["GOOGLE_API_KEY"] = GEMINI_API_KEY
         return GEMINI_API_KEY
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error setting up AI key: {e}")
 
 setup_ai_key()
 
@@ -83,10 +86,11 @@ class WellnessAgentRunner():
     async def run_agent(self, user_input: str, session_id: str = "default_user"):
         try:
             # Create session if it doesn't exist
-            if not self.session_service.get_session(session_id):
+            if not self.session_service.get_session(session_id=session_id, app_name="WellnessAgentApp", user_id=session_id):
                 self.session_service.create_session(
                     session_id=session_id,
                     user_id=session_id,
+                    app_name="WellnessAgentApp",
                 )
             
             response_gen = self.runner.run(

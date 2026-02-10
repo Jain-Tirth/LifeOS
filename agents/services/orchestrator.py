@@ -58,7 +58,7 @@ class EnhancedOrchestrator:
             # Create or get session
             if not session:
                 session = await sync_to_async(AgentSession.objects.create)(
-                    user=user,
+                    user=user if user.is_authenticated else None,
                     session_id=str(uuid.uuid4()),
                     agent_type='orchestrator'
                 )
@@ -72,7 +72,7 @@ class EnhancedOrchestrator:
                     'session_id': session.session_id
                 },
                 session=session,
-                user=user
+                user=user if user.is_authenticated else None
             )
             
             # Save user message
@@ -107,7 +107,7 @@ class EnhancedOrchestrator:
                     'intent_classification': intent_result
                 },
                 session=session,
-                user=user,
+                user=user if user.is_authenticated else None,
                 parent_event=intent_event
             )
             
@@ -122,7 +122,7 @@ class EnhancedOrchestrator:
                     'conversation_length': len(full_context.get('conversation_history', []))
                 },
                 session=session,
-                user=user,
+                user=user if user.is_authenticated else None,
                 parent_event=agent_selected_event
             )
             
@@ -138,7 +138,7 @@ class EnhancedOrchestrator:
                         'selected_agent': selected_agent
                     },
                     session=session,
-                    user=user,
+                    user=user if user.is_authenticated else None,
                     parent_event=context_event
                 )
                 
@@ -163,7 +163,7 @@ class EnhancedOrchestrator:
                     'response_received': True
                 },
                 session=session,
-                user=user,
+                user=user if user.is_authenticated else None,
                 parent_event=context_event
             )
             
@@ -181,7 +181,7 @@ class EnhancedOrchestrator:
                     'actions': []  # Future: task creation, reminders, etc.
                 },
                 session=session,
-                user=user,
+                user=user if user.is_authenticated else None,
                 parent_event=response_event
             )
             
@@ -194,7 +194,7 @@ class EnhancedOrchestrator:
                     'message_length': len(message),
                     'intent_confidence': intent_result.get('confidence', 0)
                 },
-                user=user,
+                user=user if user.is_authenticated else None,
                 event=response_event,
                 success=True
             )
@@ -205,7 +205,7 @@ class EnhancedOrchestrator:
                     'audit_created': True
                 },
                 session=session,
-                user=user,
+                user=user if user.is_authenticated else None,
                 parent_event=response_event
             )
             
@@ -230,7 +230,7 @@ class EnhancedOrchestrator:
                         'error': str(e),
                         'message': message
                     },
-                    user=user,
+                    user=user if user.is_authenticated else None,
                     success=False,
                     error_message=str(e)
                 )
@@ -255,7 +255,7 @@ class EnhancedOrchestrator:
             # Create or get session
             if not session:
                 session = await sync_to_async(AgentSession.objects.create)(
-                    user=user,
+                    user=user if user.is_authenticated else None,
                     session_id=str(uuid.uuid4()),
                     agent_type='orchestrator'
                 )
@@ -336,7 +336,7 @@ class EnhancedOrchestrator:
                     'agent': selected_agent,
                     'message_length': len(message),
                 },
-                user=user,
+                user=user if user.is_authenticated else None,
                 success=True
             )
             

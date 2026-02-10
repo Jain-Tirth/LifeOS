@@ -20,9 +20,12 @@ def setup_ai_key():
         GEMINI_API_KEY = getattr(settings, 'GEMINI_API_KEY', os.getenv("GEMINI_API_KEY"))
         if GEMINI_API_KEY is None:
             raise ValueError("GEMINI_API_KEY not set")
+        
+        # Ensure GOOGLE_API_KEY is set as well, as some ADK components depend on it
+        os.environ["GOOGLE_API_KEY"] = GEMINI_API_KEY
         return GEMINI_API_KEY
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error setting up AI key: {e}")
 
 setup_ai_key()
 
@@ -112,10 +115,11 @@ class ProductivityAgentRunner():
         """Stream agent responses chunk by chunk"""
         try:
             # Create session if it doesn't exist
-            if not self.session_service.get_session(session_id):
+            if not self.session_service.get_session(session_id=session_id, app_name="ProductivityAgentApp", user_id=session_id):
                 self.session_service.create_session(
                     session_id=session_id,
                     user_id=session_id,
+                    app_name="ProductivityAgentApp",
                 )
             
             response_gen = self.runner.run(

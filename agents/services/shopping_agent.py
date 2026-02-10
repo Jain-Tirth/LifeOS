@@ -21,9 +21,12 @@ def setup_ai_key():
         GEMINI_API_KEY = getattr(settings, 'GEMINI_API_KEY', os.getenv("GEMINI_API_KEY"))
         if GEMINI_API_KEY is None:
             raise ValueError("GEMINI_API_KEY not set")
+        
+        # Ensure GOOGLE_API_KEY is set for ADK components
+        os.environ["GOOGLE_API_KEY"] = GEMINI_API_KEY
         return GEMINI_API_KEY
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error setting up AI key: {e}")
 
 setup_ai_key()
 
