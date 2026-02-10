@@ -14,6 +14,7 @@ router.register(r'wellness-activities', views.WellnessActivityViewSet, basename=
 
 urlpatterns = [
     # Authentication endpoints
+    path('auth/csrf/', auth_views.get_csrf_token, name='get-csrf-token'),
     path('auth/register/', auth_views.register, name='register'),
     path('auth/login/', auth_views.login, name='login'),
     path('auth/profile/', auth_views.get_user_profile, name='user-profile'),

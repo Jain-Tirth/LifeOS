@@ -1,53 +1,90 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
+import { Sparkles, AlertCircle } from 'lucide-react';
 
 const Login = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setError('');
+        setLoading(true);
+        
         try {
             await login(email, password);
             navigate('/');
         } catch (error) {
-            alert('Login failed');
+            setError(error.response?.data?.error || 'Login failed. Please check your credentials.');
+        } finally {
+            setLoading(false);
         }
     };
 
     return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-100">
-            <div className="p-8 bg-white rounded shadow-md w-96">
-                <h2 className="mb-4 text-2xl font-bold text-center">Login</h2>
+        <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+            <div className="p-8 bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl w-96">
+                <div className="flex items-center justify-center gap-2 mb-6">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center">
+                        <Sparkles className="text-white" size={20} />
+                    </div>
+                    <h1 className="text-2xl font-bold text-white font-display">LifeOS</h1>
+                </div>
+                
+                <h2 className="mb-6 text-xl font-semibold text-center text-white">Welcome Back</h2>
+                
+                {error && (
+                    <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg flex items-center gap-2 text-red-200">
+                        <AlertCircle size={16} />
+                        <span className="text-sm">{error}</span>
+                    </div>
+                )}
+                
                 <form onSubmit={handleSubmit}>
                     <div className="mb-4">
-                        <label className="block mb-2 text-sm font-bold">Email</label>
+                        <label className="block mb-2 text-sm font-medium text-white/80">Email</label>
                         <input
                             type="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="w-full p-2 border rounded"
+                            className="w-full p-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                            placeholder="your@email.com"
+                            required
                         />
                     </div>
                     <div className="mb-6">
-                        <label className="block mb-2 text-sm font-bold">Password</label>
+                        <label className="block mb-2 text-sm font-medium text-white/80">Password</label>
                         <input
                             type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="w-full p-2 border rounded"
+                            className="w-full p-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                            placeholder="••••••••"
+                            required
                         />
                     </div>
                     <button
                         type="submit"
-                        className="w-full p-2 text-white bg-blue-500 rounded hover:bg-blue-600"
+                        disabled={loading}
+                        className="w-full p-3 text-white bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg hover:from-blue-600 hover:to-purple-600 transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        Login
+                        {loading ? 'Signing in...' : 'Sign In'}
                     </button>
                 </form>
+                
+                <div className="mt-6 text-center">
+                    <p className="text-white/60 text-sm">
+                        Don't have an account?{' '}
+                        <Link to="/register" className="text-purple-400 hover:text-purple-300 font-medium">
+                            Sign up
+                        </Link>
+                    </p>
+                </div>
             </div>
         </div>
     );

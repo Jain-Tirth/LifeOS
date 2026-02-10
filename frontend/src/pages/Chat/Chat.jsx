@@ -1,13 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { streamChat } from '../../api/chat';
-import { Mic, Send, Bot, User, Check, Sparkles, ArrowRight } from 'lucide-react';
+import { 
+    streamChat, 
+    getSessions, 
+    getSessionMessages,
+    saveMealPlan,
+    saveTask,
+    saveStudySession,
+    saveWellnessActivity
+} from '../../api/chat';
+import { Mic, Send, Bot, User, Check, Sparkles, ArrowRight, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const Chat = () => {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [isTyping, setIsTyping] = useState(false);
     const [isListening, setIsListening] = useState(false);
+    const [sessionId, setSessionId] = useState(null);
+    const [loading, setLoading] = useState(true);
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
 
@@ -18,6 +30,38 @@ const Chat = () => {
     useEffect(() => {
         scrollToBottom();
     }, [messages]);
+
+    // Load chat history on mount
+    useEffect(() => {
+        const loadChatHistory = async () => {
+            try {
+                // Get user sessions
+                const sessionsResponse = await getSessions();
+                const sessions = sessionsResponse.data;
+                
+                if (sessions && sessions.length > 0) {
+                    // Get the most recent session
+                    const lastSession = sessions[0];
+                    setSessionId(lastSession.session_id);
+                    
+                    // Load messages for this session
+                    const messagesResponse = await getSessionMessages(lastSession.session_id);
+                    const loadedMessages = messagesResponse.data.map(msg => ({
+                        role: msg.role,
+                        content: msg.content,
+                        agentName: msg.role === 'agent' ? 'Agent' : null
+                    }));
+                    setMessages(loadedMessages);
+                }
+            } catch (error) {
+                console.error('Failed to load chat history:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        
+        loadChatHistory();
+    }, []);
 
     const handleSend = async () => {
         if (!input.trim()) return;
@@ -32,11 +76,15 @@ const Chat = () => {
 
         await streamChat({
             message: userMessage.content,
+            sessionId: sessionId,
             onChunk: (chunk) => {
+                console.log('[CHAT] Received chunk:', chunk);
                 setMessages(prev => {
                     const newMessages = [...prev];
                     const lastMsg = newMessages[newMessages.length - 1];
+                    console.log('[CHAT] Before update:', lastMsg.content.substring(0, 50));
                     lastMsg.content += chunk;
+                    console.log('[CHAT] After update:', lastMsg.content.substring(0, 50));
                     return newMessages;
                 });
             },
@@ -72,21 +120,142 @@ const Chat = () => {
 
     const DraftCard = ({ content, agentName }) => {
         // Simple heuristic to detect if content looks like structured data (e.g. list or JSON-ish)
-        const isActionable = content.includes('-') || content.includes(':'); 
+        const isActionable = content.includes('-') || content.includes(':');
+        const [saving, setSaving] = useState(false);
+        const [saved, setSaved] = useState(false);
+        
+        // Helper to extract title from content (first line or first heading)
+        const extractTitle = (text) => {
+            const lines = text.split('\n');
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed.startsWith('#')) {
+                    return trimmed.replace(/^#+\s*/, '');
+                }
+                if (trimmed.length > 0 && trimmed.length < 200) {
+                    return trimmed;
+                }
+            }
+            return null;
+        };
+        
+        const handleSave = async () => {
+            setSaving(true);
+            try {
+                // Determine the agent type
+                const agentType = agentName.toLowerCase().replace(/\s+/g, '_');
+                
+                // Parse content and save based on agent type
+                let saveResult;
+                
+                if (agentType.includes('meal') || agentType.includes('planner')) {
+                    // Parse meal plan from content
+                    const mealPlanData = {
+                        date: new Date().toISOString().split('T')[0],
+                        meal_type: 'dinner', // Default, could be extracted from content
+                        meal_name: extractTitle(content) || 'Generated Meal Plan',
+                        instructions: content,
+                        session: sessionId
+                    };
+                    saveResult = await saveMealPlan(mealPlanData);
+                } else if (agentType.includes('productivity') || agentType.includes('task')) {
+                    // Parse task from content
+                    const taskData = {
+                        title: extractTitle(content) || 'Generated Task',
+                        description: content,
+                        priority: 'medium',
+                        status: 'todo',
+                        session: sessionId
+                    };
+                    saveResult = await saveTask(taskData);
+                } else if (agentType.includes('study') || agentType.includes('buddy')) {
+                    // Parse study session from content
+                    const studyData = {
+                        subject: extractTitle(content) || 'Study Session',
+                        duration: 60, // Default duration
+                        notes: content,
+                        session: sessionId
+                    };
+                    saveResult = await saveStudySession(studyData);
+                } else if (agentType.includes('wellness')) {
+                    // Parse wellness activity from content
+                    const activityData = {
+                        activity_type: 'exercise',
+                        notes: content,
+                        recorded_at: new Date().toISOString(),
+                        session: sessionId
+                    };
+                    saveResult = await saveWellnessActivity(activityData);
+                } else {
+                    throw new Error('Unknown agent type');
+                }
+                
+                console.log('Saved successfully:', saveResult);
+                setSaved(true);
+                setTimeout(() => setSaved(false), 3000);
+            } catch (error) {
+                console.error('Failed to save:', error);
+                alert('Failed to save content. Please try again.');
+            } finally {
+                setSaving(false);
+            }
+        };
 
         return (
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 mt-2">
-                <div className="flex items-center gap-2 mb-2 text-xs font-bold uppercase tracking-wider text-white/50">
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-5 mt-2">
+                <div className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-wider text-white/50">
                     <Sparkles size={12} className="text-yellow-400" />
-                    <span>{agentName} Draft</span>
+                    <span>{agentName}</span>
                 </div>
-                <div className="prose prose-invert prose-sm max-w-none mb-4">
-                     <p className="whitespace-pre-wrap text-white/80">{content}</p>
+                <div className="prose prose-invert prose-sm max-w-none mb-4 text-white/90 leading-relaxed">
+                    <ReactMarkdown 
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                            h1: ({ children }) => <h1 className="text-2xl font-bold text-white mb-3 mt-4">{children}</h1>,
+                            h2: ({ children }) => <h2 className="text-xl font-bold text-white mb-2 mt-3">{children}</h2>,
+                            h3: ({ children }) => <h3 className="text-lg font-semibold text-white mb-2 mt-2">{children}</h3>,
+                            p: ({ children }) => <p className="text-white/80 mb-2">{children}</p>,
+                            ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1 text-white/80">{children}</ul>,
+                            ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1 text-white/80">{children}</ol>,
+                            li: ({ children }) => <li className="text-white/80 ml-2">{children}</li>,
+                            code: ({ inline, children }) => 
+                                inline ? 
+                                <code className="bg-white/10 px-1.5 py-0.5 rounded text-sm font-mono text-yellow-300">{children}</code> :
+                                <code className="block bg-white/10 p-3 rounded-lg text-sm font-mono text-yellow-300 my-2 overflow-x-auto">{children}</code>,
+                            strong: ({ children }) => <strong className="font-bold text-white">{children}</strong>,
+                            em: ({ children }) => <em className="italic text-white/90">{children}</em>,
+                            blockquote: ({ children }) => <blockquote className="border-l-4 border-purple-400 pl-4 italic text-white/70 my-2">{children}</blockquote>,
+                        }}
+                    >
+                        {content}
+                    </ReactMarkdown>
                 </div>
                 {isActionable && (
-                    <button className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors text-sm w-full justify-center">
-                        <Check size={16} />
-                        Save to {agentName}
+                    <button 
+                        onClick={handleSave}
+                        disabled={saving || saved}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all text-sm w-full justify-center ${
+                            saved 
+                                ? 'bg-green-500/20 text-green-300 border border-green-500/50'
+                                : 'bg-white/10 hover:bg-white/20 text-white border border-white/10'
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                        {saving ? (
+                            <>
+                                <Loader2 size={16} className="animate-spin" />
+                                Saving...
+                            </>
+                        ) : saved ? (
+                            <>
+                                <Check size={16} />
+                                Saved to {agentName}
+                            </>
+                        ) : (
+                            <>
+                                <Check size={16} />
+                                Save to {agentName}
+                            </>
+                        )}
                     </button>
                 )}
             </div>
@@ -101,12 +270,17 @@ const Chat = () => {
             </header>
 
             <div className="flex-1 overflow-y-auto pr-4 space-y-6 scrollbar-hide">
-                {messages.length === 0 && (
+                {loading ? (
+                    <div className="h-full flex flex-col items-center justify-center text-white/40">
+                        <Loader2 size={48} className="mb-4 animate-spin" />
+                        <p>Loading chat history...</p>
+                    </div>
+                ) : messages.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-white/20">
                         <Bot size={64} className="mb-4" />
                         <p>How can I help you today?</p>
                     </div>
-                )}
+                ) : null}
                 
                 <AnimatePresence>
                     {messages.map((msg, idx) => (

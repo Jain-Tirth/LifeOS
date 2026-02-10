@@ -152,8 +152,23 @@ REST_FRAMEWORK = {
 
 
 # CORS settings
-CORS_ALLOW_ALL_ORIGINS = DEBUG  # Only for development
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:5173',  # Vite default dev server
+    'http://127.0.0.1:5173',
+    'http://localhost:5174',  # Alternate port
+    'http://127.0.0.1:5174',
+]
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True  # Allow all in development
+
+# CSRF settings
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:5174',
+    'http://127.0.0.1:5174',
+]
 
 
 # Simple JWT settings (single token, no refresh)

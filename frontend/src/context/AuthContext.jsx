@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { login as apiLogin, register as apiRegister, getProfile, logout as apiLogout } from '../api/auth';
+import { useNavigate } from 'react-router-dom';
 
 const AuthContext = createContext();
 
@@ -15,7 +16,6 @@ export const AuthProvider = ({ children }) => {
             if (token) {
                 try {
                     const response = await getProfile();
-                    // Assuming endpoint returns { user: ... } or just user object
                     setUser(response.data);
                 } catch (error) {
                     console.error("Failed to fetch profile:", error);
@@ -29,18 +29,20 @@ export const AuthProvider = ({ children }) => {
 
     const login = async (email, password) => {
         const data = await apiLogin(email, password);
-        setUser(data.user || { email }); // Fallback if user object not full
+        setUser(data.user);
         return data;
     };
 
     const register = async (email, password, firstName, lastName) => {
         const data = await apiRegister(email, password, firstName, lastName);
+        setUser(data.user);
         return data;
     };
 
     const logout = () => {
         apiLogout();
         setUser(null);
+        window.location.href = '/login';
     };
 
     return (

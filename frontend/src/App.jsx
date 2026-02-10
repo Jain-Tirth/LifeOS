@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { initCSRF } from './api/client';
 import Layout from './components/layout/Layout';
 import Login from './pages/Login/Login';
+import Register from './pages/Register/Register';
 import Dashboard from './pages/Dashboard/Dashboard';
 import Chat from './pages/Chat/Chat';
 import Productivity from './pages/Productivity/Productivity';
@@ -17,18 +19,23 @@ const ProtectedRoute = ({ children }) => {
     
     if (loading) return <div className="flex h-screen items-center justify-center bg-slate-900 text-white">Loading...</div>;
     
-    // Allow access for demo purposes, in prod uncomment below
-    // if (!user) return <Navigate to="/login" />;
+    if (!user) return <Navigate to="/login" />;
     
     return <Layout>{children}</Layout>;
 };
 
 function App() {
+  useEffect(() => {
+    // Initialize CSRF token on app load
+    initCSRF();
+  }, []);
+  
   return (
     <AuthProvider>
       <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
           <Route path="/" element={
             <ProtectedRoute>
               <Dashboard />

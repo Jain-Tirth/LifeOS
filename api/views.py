@@ -68,6 +68,10 @@ class MealPlanViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         queryset = super().get_queryset()
+        # Filter by current user if authenticated
+        if self.request.user.is_authenticated:
+            queryset = queryset.filter(user=self.request.user)
+        
         date = self.request.query_params.get('date')
         meal_type = self.request.query_params.get('meal_type')
         
@@ -77,6 +81,13 @@ class MealPlanViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(meal_type=meal_type)
         
         return queryset
+    
+    def perform_create(self, serializer):
+        # Automatically assign current user if authenticated
+        if self.request.user.is_authenticated:
+            serializer.save(user=self.request.user)
+        else:
+            serializer.save()
 
 
 class TaskViewSet(viewsets.ModelViewSet):
@@ -85,6 +96,10 @@ class TaskViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         queryset = super().get_queryset()
+        # Filter by current user if authenticated
+        if self.request.user.is_authenticated:
+            queryset = queryset.filter(user=self.request.user)
+        
         status_param = self.request.query_params.get('status')
         priority = self.request.query_params.get('priority')
         
@@ -94,11 +109,32 @@ class TaskViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(priority=priority)
         
         return queryset
+    
+    def perform_create(self, serializer):
+        # Automatically assign current user if authenticated
+        if self.request.user.is_authenticated:
+            serializer.save(user=self.request.user)
+        else:
+            serializer.save()
 
 
 class StudySessionViewSet(viewsets.ModelViewSet):
     queryset = StudySession.objects.all()
     serializer_class = StudySessionSerializer
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        # Filter by current user if authenticated
+        if self.request.user.is_authenticated:
+            queryset = queryset.filter(user=self.request.user)
+        return queryset
+    
+    def perform_create(self, serializer):
+        # Automatically assign current user if authenticated
+        if self.request.user.is_authenticated:
+            serializer.save(user=self.request.user)
+        else:
+            serializer.save()
 
 
 class WellnessActivityViewSet(viewsets.ModelViewSet):
@@ -107,12 +143,23 @@ class WellnessActivityViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         queryset = super().get_queryset()
+        # Filter by current user if authenticated
+        if self.request.user.is_authenticated:
+            queryset = queryset.filter(user=self.request.user)
+        
         activity_type = self.request.query_params.get('activity_type')
         
         if activity_type:
             queryset = queryset.filter(activity_type=activity_type)
         
         return queryset
+    
+    def perform_create(self, serializer):
+        # Automatically assign current user if authenticated
+        if self.request.user.is_authenticated:
+            serializer.save(user=self.request.user)
+        else:
+            serializer.save()
 
 
 @api_view(['POST'])
