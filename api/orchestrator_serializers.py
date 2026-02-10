@@ -8,7 +8,7 @@ class ChatMessageSerializer(serializers.Serializer):
     force_agent = serializers.ChoiceField(
         required=False,
         allow_null=True,
-        choices=['meal_planner', 'planner', 'habit_coach', 'knowledge', 'wellness']
+        choices=['meal_planner_agent', 'productivity_agent', 'study_agent', 'wellness_agent', 'shopping_agent']
     )
 
 

@@ -1,7 +1,7 @@
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.http import StreamingHttpResponse
 from agents.models import AgentSession
 from agents.services.orchestrator import orchestrator
@@ -12,30 +12,10 @@ import json
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def chat(request):
     """
     Send a message to the orchestrator for intelligent agent routing
-    
-    Request body:
-    {
-        "message": "I want to plan my meals for next week",
-        "session_id": "optional-session-id",  (optional)
-        "force_agent": "meal_planner"  (optional - bypass intent classification)
-    }
-    
-    Response:
-    {
-        "success": true,
-        "response": {...},
-        "agent": "meal_planner",
-        "intent_classification": {
-            "primary_agent": "meal_planner",
-            "confidence": 0.95,
-            "reasoning": "..."
-        },
-        "session_id": "uuid"
-    }
     """
     serializer = ChatMessageSerializer(data=request.data)
     
@@ -52,7 +32,7 @@ def chat(request):
         try:
             session = AgentSession.objects.get(
                 session_id=session_id,
-                user=request.user
+                user=request.user if request.user.is_authenticated else None
             )
         except AgentSession.DoesNotExist:
             return Response({
@@ -61,39 +41,38 @@ def chat(request):
     
     # Process message through orchestrator
     try:
-        result = asyncio.run(
+        # Note: In a real Django view, we should use a wrapper to run the async orchestrator
+        # or use an async view (Django 3.1+)
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        result = loop.run_until_complete(
             orchestrator.process_message(
                 message=message,
-                user=request.user,
+                user=request.user if request.user.is_authenticated else None,
                 session=session,
                 force_agent=force_agent
             )
         )
+        loop.close()
         
         response_serializer = ChatResponseSerializer(result)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
         
     except Exception as e:
+        import traceback
         return Response({
             'success': False,
-            'error': str(e)
+            'error': str(e),
+            'traceback': traceback.format_exc()
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def chat_stream(request):
     """
     Stream agent responses in real-time using Server-Sent Events (SSE)
-    
-    Request body:
-    {
-        "message": "I want to plan my meals for next week",
-        "session_id": "optional-session-id",  (optional)
-        "force_agent": "meal_planner"  (optional)
-    }
-    
-    Response: SSE stream with chunks of agent response
     """
     serializer = ChatMessageSerializer(data=request.data)
     
@@ -110,7 +89,7 @@ def chat_stream(request):
         try:
             session = AgentSession.objects.get(
                 session_id=session_id,
-                user=request.user
+                user=request.user if request.user.is_authenticated else None
             )
         except AgentSession.DoesNotExist:
             def error_stream():
@@ -131,22 +110,32 @@ def chat_stream(request):
         
         def run_async_gen():
             """Run async generator in thread"""
+            # Create a new event loop for the background thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
             async def collect():
                 try:
                     async for chunk in orchestrator.process_message_stream(
                         message=message,
-                        user=request.user,
+                        user=request.user if request.user.is_authenticated else None,
                         session=session,
                         force_agent=force_agent
                     ):
                         q.put(('data', chunk))
                 except Exception as e:
+                    import traceback
+                    print(f"Streaming error in thread: {e}")
+                    traceback.print_exc()
                     exception_holder['exception'] = e
                     q.put(('error', str(e)))
                 finally:
                     q.put(('done', None))
             
-            asyncio.run(collect())
+            try:
+                loop.run_until_complete(collect())
+            finally:
+                loop.close()
         
         # Start async generator in background thread
         thread = threading.Thread(target=run_async_gen, daemon=True)
@@ -157,7 +146,7 @@ def chat_stream(request):
             while True:
                 # Non-blocking get with timeout to allow checking if done
                 try:
-                    item = q.get(timeout=30)  # 30 second timeout
+                    item = q.get(timeout=60)  # 60 second timeout
                 except queue.Empty:
                     yield f"data: {{\"type\": \"error\", \"error\": \"Timeout waiting for response\"}}\n\n"
                     break
@@ -185,16 +174,10 @@ def chat_stream(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def get_available_agents(request):
     """
     Get list of available agents
-    
-    Response:
-    {
-        "implemented": ["meal_planner"],
-        "planned": ["meal_planner", "planner", "habit_coach", "knowledge", "wellness"]
-    }
     """
     return Response({
         'implemented': orchestrator.get_available_agents(),
@@ -203,23 +186,14 @@ def get_available_agents(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def get_user_sessions(request):
     """
-    Get all sessions for the authenticated user
-    
-    Response:
-    [
-        {
-            "session_id": "uuid",
-            "agent_type": "meal_planner",
-            "created_at": "2026-01-30T...",
-            "updated_at": "2026-01-30T...",
-            "message_count": 5
-        }
-    ]
+    Get all sessions for the user (handles unauthenticated)
     """
-    sessions = AgentSession.objects.filter(user=request.user).order_by('-updated_at')
+    sessions = AgentSession.objects.filter(
+        user=request.user if request.user.is_authenticated else None
+    ).order_by('-updated_at')
     
     session_data = []
     for session in sessions:
@@ -235,29 +209,15 @@ def get_user_sessions(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def get_session_messages(request, session_id):
     """
     Get all messages for a specific session
-    
-    Response:
-    [
-        {
-            "role": "user",
-            "content": "Plan my meals",
-            "created_at": "2026-01-30T..."
-        },
-        {
-            "role": "agent",
-            "content": "...",
-            "created_at": "2026-01-30T..."
-        }
-    ]
     """
     try:
         session = AgentSession.objects.get(
             session_id=session_id,
-            user=request.user
+            user=request.user if request.user.is_authenticated else None
         )
     except AgentSession.DoesNotExist:
         return Response({
