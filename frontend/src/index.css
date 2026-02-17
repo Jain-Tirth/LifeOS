@@ -3,22 +3,50 @@
 @import "tailwindcss";
 
 @layer base {
-  body {
-    @apply antialiased font-sans text-slate-900;
+
+  /* Theme variables */
+  :root {
+    --bg-primary: 241 245 249;
+    --bg-secondary: 255 255 255;
+    --text-primary: 15 23 42;
+    --text-secondary: 71 85 105;
+    --border-color: 226 232 240;
   }
-  
+
+  .dark {
+    --bg-primary: 15 23 42;
+    --bg-secondary: 30 41 59;
+    --text-primary: 248 250 252;
+    --text-secondary: 203 213 225;
+    --border-color: 51 65 85;
+  }
+
+  body {
+    @apply antialiased font-sans transition-colors duration-300;
+    background: linear-gradient(135deg, rgb(var(--bg-primary)) 0%, rgb(var(--bg-secondary)) 100%);
+    color: rgb(var(--text-primary));
+  }
+
   /* Custom scrollbar */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
-  
+
   ::-webkit-scrollbar-track {
     @apply bg-transparent;
   }
-  
+
   ::-webkit-scrollbar-thumb {
-    @apply bg-white/10 rounded-full hover:bg-white/20 transition-colors;
+    @apply rounded-full transition-colors;
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    @apply bg-white/10 hover:bg-white/20;
+  }
+
+  .light ::-webkit-scrollbar-thumb {
+    @apply bg-slate-300 hover:bg-slate-400;
   }
 }
 
@@ -26,31 +54,71 @@
   .font-display {
     font-family: 'Outfit', sans-serif;
   }
-  
+
   .glass-card {
     @apply bg-white/10 backdrop-blur-md border border-white/10 shadow-xl;
   }
-  
+
   .glass-sidebar {
     @apply backdrop-blur-xl border-r border-white/10;
   }
-  
+
   .glass-input {
     @apply bg-black/20 border border-white/10 text-white placeholder-white/40 focus:border-white/30 focus:ring-1 focus:ring-white/30 backdrop-blur-sm;
   }
 
   .text-glow {
-    text-shadow: 0 0 20px rgba(255,255,255,0.3);
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
   }
 }
 
 /* Animations */
 @keyframes float {
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-  100% { transform: translateY(0px); }
+  0% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+@keyframes skeleton {
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes pulse-slow {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
 }
 
 .animate-float {
   animation: float 6s ease-in-out infinite;
+}
+
+.animate-skeleton {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  background-size: 200% 100%;
+  animation: skeleton 1.5s ease-in-out infinite;
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
