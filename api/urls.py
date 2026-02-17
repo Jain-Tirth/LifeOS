@@ -27,6 +27,11 @@ urlpatterns = [
     path('my-sessions/', orchestrator_views.get_user_sessions, name='user-sessions'),
     path('sessions/<str:session_id>/messages/', orchestrator_views.get_session_messages, name='session-messages'),
     
+    # Save agent data endpoints
+    path('save-agent-response/', orchestrator_views.save_agent_response, name='save-agent-response'),
+    path('bulk-save-agent-responses/', orchestrator_views.bulk_save_agent_responses, name='bulk-save-agent-responses'),
+    path('sessions/<str:session_id>/saved-items/', orchestrator_views.get_session_saved_items, name='session-saved-items'),
+    
     # Agent and data endpoints
     path('', include(router.urls)),
     path('create-session/', views.create_agent_session, name='create-session'),

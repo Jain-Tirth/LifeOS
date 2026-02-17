@@ -3,12 +3,21 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.http import StreamingHttpResponse
-from agents.models import AgentSession
+from agents.models import AgentSession, MealPlan, Task, StudySession, WellnessActivity
 from agents.services.orchestrator import orchestrator
 from .orchestrator_serializers import ChatMessageSerializer, ChatResponseSerializer
+from .serializers import (
+    MealPlanSerializer, 
+    TaskSerializer, 
+    StudySessionSerializer, 
+    WellnessActivitySerializer
+)
 from asgiref.sync import async_to_sync
 import asyncio
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @api_view(['POST'])
@@ -236,3 +245,194 @@ def get_session_messages(request, session_id):
     ]
     
     return Response(message_data, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def save_agent_response(request):
+    """
+    Generic endpoint to save agent response data to appropriate model
+    Automatically routes to correct model based on agent_type
+    """
+    agent_type = request.data.get('agent_type')
+    session_id = request.data.get('session_id')
+    data = request.data.get('data', {})
+    
+    if not agent_type:
+        return Response({
+            'success': False,
+            'error': 'agent_type is required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Add session_id to data if provided
+    if session_id:
+        data['session_id'] = session_id
+    
+    try:
+        # Route to appropriate serializer based on agent type
+        if 'meal' in agent_type.lower() or 'planner' in agent_type.lower():
+            serializer = MealPlanSerializer(data=data, context={'request': request})
+        elif 'productivity' in agent_type.lower() or 'task' in agent_type.lower():
+            serializer = TaskSerializer(data=data, context={'request': request})
+        elif 'study' in agent_type.lower() or 'buddy' in agent_type.lower():
+            serializer = StudySessionSerializer(data=data, context={'request': request})
+        elif 'wellness' in agent_type.lower():
+            serializer = WellnessActivitySerializer(data=data, context={'request': request})
+        else:
+            return Response({
+                'success': False,
+                'error': f'Unknown agent type: {agent_type}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate and save
+        if serializer.is_valid():
+            # Set user if authenticated
+            if request.user.is_authenticated:
+                serializer.save(user=request.user)
+            else:
+                serializer.save()
+            
+            logger.info(f"Agent response saved successfully for {agent_type}")
+            
+            return Response({
+                'success': True,
+                'message': 'Agent response saved successfully',
+                'data': serializer.data
+            }, status=status.HTTP_201_CREATED)
+        else:
+            return Response({
+                'success': False,
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+    except Exception as e:
+        logger.error(f"Error saving agent response: {str(e)}")
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def bulk_save_agent_responses(request):
+    """
+    Bulk save multiple agent responses at once
+    Useful for saving multiple items from a single agent interaction
+    """
+    items = request.data.get('items', [])
+    
+    if not items or not isinstance(items, list):
+        return Response({
+            'success': False,
+            'error': 'items array is required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    saved_items = []
+    errors = []
+    
+    for idx, item in enumerate(items):
+        agent_type = item.get('agent_type')
+        session_id = item.get('session_id')
+        data = item.get('data', {})
+        
+        if not agent_type:
+            errors.append({
+                'index': idx,
+                'error': 'agent_type is required'
+            })
+            continue
+        
+        # Add session_id to data if provided
+        if session_id:
+            data['session_id'] = session_id
+        
+        try:
+            # Route to appropriate serializer
+            if 'meal' in agent_type.lower() or 'planner' in agent_type.lower():
+                serializer = MealPlanSerializer(data=data, context={'request': request})
+            elif 'productivity' in agent_type.lower() or 'task' in agent_type.lower():
+                serializer = TaskSerializer(data=data, context={'request': request})
+            elif 'study' in agent_type.lower() or 'buddy' in agent_type.lower():
+                serializer = StudySessionSerializer(data=data, context={'request': request})
+            elif 'wellness' in agent_type.lower():
+                serializer = WellnessActivitySerializer(data=data, context={'request': request})
+            else:
+                errors.append({
+                    'index': idx,
+                    'error': f'Unknown agent type: {agent_type}'
+                })
+                continue
+            
+            # Validate and save
+            if serializer.is_valid():
+                if request.user.is_authenticated:
+                    obj = serializer.save(user=request.user)
+                else:
+                    obj = serializer.save()
+                
+                saved_items.append({
+                    'index': idx,
+                    'agent_type': agent_type,
+                    'data': serializer.data
+                })
+            else:
+                errors.append({
+                    'index': idx,
+                    'errors': serializer.errors
+                })
+                
+        except Exception as e:
+            logger.error(f"Error saving item {idx}: {str(e)}")
+            errors.append({
+                'index': idx,
+                'error': str(e)
+            })
+    
+    return Response({
+        'success': len(errors) == 0,
+        'saved_count': len(saved_items),
+        'error_count': len(errors),
+        'saved_items': saved_items,
+        'errors': errors
+    }, status=status.HTTP_201_CREATED if saved_items else status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_session_saved_items(request, session_id):
+    """
+    Get all items saved from a specific agent session
+    Returns meal plans, tasks, study sessions, and wellness activities
+    """
+    try:
+        session = AgentSession.objects.get(
+            session_id=session_id,
+            user=request.user if request.user.is_authenticated else None
+        )
+    except AgentSession.DoesNotExist:
+        return Response({
+            'error': 'Session not found or does not belong to user'
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    # Gather all related items
+    meal_plans = MealPlan.objects.filter(session=session)
+    tasks = Task.objects.filter(session=session)
+    study_sessions = StudySession.objects.filter(session=session)
+    wellness_activities = WellnessActivity.objects.filter(session=session)
+    
+    return Response({
+        'session_id': session_id,
+        'saved_items': {
+            'meal_plans': MealPlanSerializer(meal_plans, many=True).data,
+            'tasks': TaskSerializer(tasks, many=True).data,
+            'study_sessions': StudySessionSerializer(study_sessions, many=True).data,
+            'wellness_activities': WellnessActivitySerializer(wellness_activities, many=True).data,
+        },
+        'total_count': (
+            meal_plans.count() + 
+            tasks.count() + 
+            study_sessions.count() + 
+            wellness_activities.count()
+        )
+    }, status=status.HTTP_200_OK)
