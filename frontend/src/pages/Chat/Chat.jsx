@@ -6,7 +6,8 @@ import {
     saveMealPlan,
     saveTask,
     saveStudySession,
-    saveWellnessActivity
+    saveWellnessActivity,
+    deleteSession
 } from '../../api/chat';
 import { Mic, Send, Bot, User, Check, Sparkles, ArrowRight, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -29,6 +30,7 @@ const Chat = () => {
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
     const messagesContainerRef = useRef(null);
+    const historyLoadedRef = useRef(false);
     const toast = useToast();
 
     const scrollToBottom = () => {
@@ -67,11 +69,16 @@ const Chat = () => {
                     const loadedMessages = messagesResponse.data.map(msg => ({
                         role: msg.role,
                         content: msg.content,
-                        timestamp: msg.timestamp || new Date().toISOString(),
-                        agentName: msg.role === 'agent' ? 'Agent' : null
+                        timestamp: msg.created_at || new Date().toISOString(),
+                        agentName: msg.role === 'agent'
+                            ? (lastSession.agent_type || 'agent').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+                            : null
                     }));
                     setMessages(loadedMessages);
-                    toast.success('Chat history loaded');
+                    if (loadedMessages.length > 0 && !historyLoadedRef.current) {
+                        historyLoadedRef.current = true;
+                        toast.success('Chat history loaded');
+                    }
                 }
             } catch (error) {
                 console.error('Failed to load chat history:', error);
@@ -96,8 +103,10 @@ const Chat = () => {
             const loadedMessages = messagesResponse.data.map(msg => ({
                 role: msg.role,
                 content: msg.content,
-                timestamp: msg.timestamp || new Date().toISOString(),
-                agentName: msg.role === 'agent' ? 'Agent' : null
+                timestamp: msg.created_at || new Date().toISOString(),
+                agentName: msg.role === 'agent'
+                    ? (msg.metadata?.agent_type || 'agent').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+                    : null
             }));
             setMessages(loadedMessages);
         } catch (error) {
@@ -108,7 +117,16 @@ const Chat = () => {
     };
 
     const handleDeleteSession = async (sid) => {
-        // Note: This is frontend-only deletion, no backend call
+        try {
+            await deleteSession(sid);
+        } catch (error) {
+            // If 404 (already gone) continue silently; other errors show toast
+            if (error?.response?.status !== 404) {
+                console.error('Failed to delete session from server:', error);
+                toast.error('Could not delete session from server.');
+                return;
+            }
+        }
         setSessions(prev => prev.filter(s => s.session_id !== sid));
         if (sid === sessionId) {
             handleNewSession();
@@ -148,15 +166,26 @@ const Chat = () => {
                 });
             },
             onAgentSelected: (data) => {
+                // Capture session_id for this conversation if not already set
+                if (!sessionId && data.session_id) {
+                    setSessionId(data.session_id);
+                }
                 setMessages(prev => {
                     const newMessages = [...prev];
                     const lastMsg = newMessages[newMessages.length - 1];
-                    lastMsg.agentName = data.agent.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    lastMsg.agentName = data.agent.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                     return newMessages;
                 });
             },
-            onDone: () => {
+            onDone: async () => {
                 setIsTyping(false);
+                // Refresh sessions sidebar so the new session appears
+                try {
+                    const sessionsResponse = await getSessions();
+                    setSessions(sessionsResponse.data);
+                } catch (err) {
+                    console.error('Failed to refresh sessions:', err);
+                }
             },
             onError: (err) => {
                 console.error(err);
@@ -241,10 +270,17 @@ const Chat = () => {
     };
 
     const DraftCard = ({ content, agentName, timestamp, onCopy, onDelete }) => {
-        // Simple heuristic to detect if content looks like structured data (e.g. list or JSON-ish)
-        const isActionable = content.includes('-') || content.includes(':');
         const [saving, setSaving] = useState(false);
         const [saved, setSaved] = useState(false);
+
+        // Determine which agent type this is (normalised)
+        const agentType = (agentName || '').toLowerCase().replace(/\s+/g, '_');
+        const isMeal = agentType.includes('meal') || agentType.includes('planner');
+        const isProductivity = agentType.includes('productivity') || agentType.includes('task');
+        const isStudy = agentType.includes('study') || agentType.includes('buddy');
+        const isWellness = agentType.includes('wellness');
+        // Show save button for any structured content (actionable heuristic)
+        const isActionable = content.includes('-') || content.includes('\n') || content.length > 100;
 
         // Helper to extract title from content (first line or first heading)
         const extractTitle = (text) => {
@@ -264,14 +300,9 @@ const Chat = () => {
         const handleSave = async () => {
             setSaving(true);
             try {
-                // Determine the agent type
-                const agentType = agentName.toLowerCase().replace(/\s+/g, '_');
-
-                // Parse content and save based on agent type
                 let saveResult;
 
-                if (agentType.includes('meal') || agentType.includes('planner')) {
-                    // Parse meal plan from content
+                if (isMeal) {
                     const mealPlanData = {
                         date: new Date().toISOString().split('T')[0],
                         meal_type: 'dinner',
@@ -279,8 +310,7 @@ const Chat = () => {
                         instructions: content
                     };
                     saveResult = await saveMealPlan(mealPlanData);
-                } else if (agentType.includes('productivity') || agentType.includes('task')) {
-                    // Parse task from content
+                } else if (isProductivity) {
                     const taskData = {
                         title: extractTitle(content) || 'Generated Task',
                         description: content,
@@ -288,16 +318,14 @@ const Chat = () => {
                         status: 'todo'
                     };
                     saveResult = await saveTask(taskData);
-                } else if (agentType.includes('study') || agentType.includes('buddy')) {
-                    // Parse study session from content
+                } else if (isStudy) {
                     const studyData = {
                         subject: extractTitle(content) || 'Study Session',
                         duration: 60,
                         notes: content
                     };
                     saveResult = await saveStudySession(studyData);
-                } else if (agentType.includes('wellness')) {
-                    // Parse wellness activity from content
+                } else if (isWellness) {
                     const activityData = {
                         activity_type: 'exercise',
                         notes: content,
@@ -305,7 +333,14 @@ const Chat = () => {
                     };
                     saveResult = await saveWellnessActivity(activityData);
                 } else {
-                    throw new Error('Unknown agent type');
+                    // Orchestrator / unknown agent — save as a generic Task note
+                    const taskData = {
+                        title: extractTitle(content) || 'AI Response',
+                        description: content,
+                        priority: 'medium',
+                        status: 'todo'
+                    };
+                    saveResult = await saveTask(taskData);
                 }
 
                 console.log('Saved successfully:', saveResult);

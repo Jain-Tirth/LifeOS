@@ -26,6 +26,7 @@ urlpatterns = [
     path('agents/', orchestrator_views.get_available_agents, name='available-agents'),
     path('my-sessions/', orchestrator_views.get_user_sessions, name='user-sessions'),
     path('sessions/<str:session_id>/messages/', orchestrator_views.get_session_messages, name='session-messages'),
+    path('sessions/<str:session_id>/delete/', orchestrator_views.delete_session, name='delete-session'),
     
     # Save agent data endpoints
     path('save-agent-response/', orchestrator_views.save_agent_response, name='save-agent-response'),

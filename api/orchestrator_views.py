@@ -398,6 +398,25 @@ def bulk_save_agent_responses(request):
     }, status=status.HTTP_201_CREATED if saved_items else status.HTTP_400_BAD_REQUEST)
 
 
+@api_view(['DELETE'])
+@permission_classes([AllowAny])
+def delete_session(request, session_id):
+    """
+    Delete a specific agent session and all its messages.
+    """
+    try:
+        session = AgentSession.objects.get(
+            session_id=session_id,
+            user=request.user if request.user.is_authenticated else None
+        )
+        session.delete()
+        return Response({'success': True}, status=status.HTTP_204_NO_CONTENT)
+    except AgentSession.DoesNotExist:
+        return Response({
+            'error': 'Session not found or does not belong to user'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_session_saved_items(request, session_id):

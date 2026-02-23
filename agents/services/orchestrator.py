@@ -284,6 +284,7 @@ class EnhancedOrchestrator:
             yield {
                 'type': 'agent_selected',
                 'agent': selected_agent,
+                'session_id': session.session_id,
                 'intent': intent_result
             }
             
