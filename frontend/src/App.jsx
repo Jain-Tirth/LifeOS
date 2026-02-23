@@ -7,6 +7,7 @@ import Layout from './components/layout/Layout';
 import Login from './pages/Login/Login';
 import Register from './pages/Register/Register';
 import Dashboard from './pages/Dashboard/Dashboard';
+import LandingPage from './pages/Landing/LandingPage';
 import Chat from './pages/Chat/Chat';
 import Productivity from './pages/Productivity/Productivity';
 import Wellness from './pages/Wellness/Wellness';
@@ -38,7 +39,8 @@ function App() {
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
-              <Route path="/" element={
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/dashboard" element={
                 <ProtectedRoute>
                   <Dashboard />
                 </ProtectedRoute>
