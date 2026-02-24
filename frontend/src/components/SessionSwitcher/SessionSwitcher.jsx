@@ -6,6 +6,11 @@ const SessionSwitcher = ({ sessions, currentSessionId, onSelectSession, onNewSes
     const [isOpen, setIsOpen] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState(null);
 
+    const formatAgentType = (type) =>
+        (type || 'Chat')
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, l => l.toUpperCase());
+
     const formatDate = (dateStr) => {
         const date = new Date(dateStr);
         const now = new Date();
@@ -104,8 +109,8 @@ const SessionSwitcher = ({ sessions, currentSessionId, onSelectSession, onNewSes
                                                 setIsOpen(false);
                                             }}
                                             className={`p-3 rounded-lg cursor-pointer transition-all group ${currentSessionId === session.session_id
-                                                    ? 'bg-white/20 border border-white/30'
-                                                    : 'bg-white/5 hover:bg-white/10 border border-white/10'
+                                                ? 'bg-white/20 border border-white/30'
+                                                : 'bg-white/5 hover:bg-white/10 border border-white/10'
                                                 }`}
                                         >
                                             <div className="flex items-start justify-between gap-2">
@@ -113,11 +118,11 @@ const SessionSwitcher = ({ sessions, currentSessionId, onSelectSession, onNewSes
                                                     <div className="flex items-center gap-2 mb-1">
                                                         <MessageSquare size={14} className="text-white/60 flex-shrink-0" />
                                                         <span className="text-sm font-medium text-white truncate">
-                                                            Session {session.session_id.slice(0, 8)}
+                                                            {formatAgentType(session.agent_type)}
                                                         </span>
                                                     </div>
                                                     <p className="text-xs text-white/40">
-                                                        {formatDate(session.created_at)}
+                                                        {formatDate(session.updated_at || session.created_at)}
                                                     </p>
                                                     {session.message_count !== undefined && (
                                                         <p className="text-xs text-white/30 mt-1">
@@ -129,8 +134,8 @@ const SessionSwitcher = ({ sessions, currentSessionId, onSelectSession, onNewSes
                                                 <button
                                                     onClick={(e) => handleDelete(session.session_id, e)}
                                                     className={`p-1.5 rounded opacity-0 group-hover:opacity-100 transition-all ${deleteConfirm === session.session_id
-                                                            ? 'bg-red-500 text-white'
-                                                            : 'hover:bg-white/10 text-white/60 hover:text-red-400'
+                                                        ? 'bg-red-500 text-white'
+                                                        : 'hover:bg-white/10 text-white/60 hover:text-red-400'
                                                         }`}
                                                     title={deleteConfirm === session.session_id ? 'Click again to confirm' : 'Delete session'}
                                                 >

@@ -26,24 +26,24 @@ export const sendMessage = async (message, sessionId = null, forceAgent = null) 
 
 export const streamChat = async ({ message, sessionId, onChunk, onAgentSelected, onError, onDone }) => {
     const token = localStorage.getItem('lifeos_token');
-    
+
     try {
         // Prepare headers
         const headers = {
             'Content-Type': 'application/json',
         };
-        
+
         // Add JWT token if available
         if (token) {
             headers['Authorization'] = `Bearer ${token}`;
         }
-        
+
         // Add CSRF token for session authentication
         const csrfToken = getCookie('csrftoken');
         if (csrfToken) {
             headers['X-CSRFToken'] = csrfToken;
         }
-        
+
         const response = await fetch('/api/chat/stream/', {
             method: 'POST',
             headers: headers,
@@ -78,7 +78,7 @@ export const streamChat = async ({ message, sessionId, onChunk, onAgentSelected,
                     try {
                         const data = JSON.parse(line.slice(6));
                         console.log('[STREAM] Parsed data:', data);
-                        
+
                         if (data.type === 'agent_selected' && onAgentSelected) {
                             onAgentSelected(data);
                         } else if (data.type === 'chunk' && onChunk) {
@@ -109,7 +109,6 @@ export const getSessionMessages = async (sessionId) => {
     return client.get(`/sessions/${sessionId}/messages/`);
 };
 
-// Agent-specific save functions
 export const saveMealPlan = async (mealPlanData) => {
     return client.post('/meal-plans/', mealPlanData);
 };
@@ -124,4 +123,16 @@ export const saveStudySession = async (studySessionData) => {
 
 export const saveWellnessActivity = async (activityData) => {
     return client.post('/wellness-activities/', activityData);
+};
+
+export const saveAgentResponse = async ({ agent_type, session_id, data }) => {
+    return client.post('/save-agent-response/', { agent_type, session_id, data });
+};
+
+export const getSessionSavedItems = async (sessionId) => {
+    return client.get(`/sessions/${sessionId}/saved-items/`);
+};
+
+export const deleteSession = async (sessionId) => {
+    return client.delete(`/sessions/${sessionId}/delete/`);
 };
