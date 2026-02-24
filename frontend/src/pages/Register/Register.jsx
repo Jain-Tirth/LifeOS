@@ -32,7 +32,7 @@ const Register = () => {
         
         try {
             await register(email, password, firstName, lastName);
-            navigate('/');
+            navigate('/dashboard');
         } catch (error) {
             setError(error.response?.data?.error || error.response?.data?.email?.[0] || 'Registration failed. Please try again.');
         } finally {
