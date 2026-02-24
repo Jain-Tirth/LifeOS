@@ -239,6 +239,7 @@ def get_session_messages(request, session_id):
         {
             'role': msg.role,
             'content': msg.content,
+            'metadata': msg.metadata,
             'created_at': msg.created_at.isoformat()
         }
         for msg in messages

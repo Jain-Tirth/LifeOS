@@ -125,6 +125,14 @@ export const saveWellnessActivity = async (activityData) => {
     return client.post('/wellness-activities/', activityData);
 };
 
+export const saveAgentResponse = async ({ agent_type, session_id, data }) => {
+    return client.post('/save-agent-response/', { agent_type, session_id, data });
+};
+
+export const getSessionSavedItems = async (sessionId) => {
+    return client.get(`/sessions/${sessionId}/saved-items/`);
+};
+
 export const deleteSession = async (sessionId) => {
     return client.delete(`/sessions/${sessionId}/delete/`);
 };

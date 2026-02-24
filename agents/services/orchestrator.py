@@ -170,11 +170,12 @@ class EnhancedOrchestrator:
                 parent_event=context_event
             )
             
-            # Save agent message
+            # Save agent message with agent type in metadata
             await sync_to_async(Message.objects.create)(
                 session=session,
                 role='agent',
-                content=str(agent_response)
+                content=str(agent_response),
+                metadata={'agent_type': selected_agent}
             )
             
             # Step 5: ACTIONS_APPLIED (placeholder for future actions)
@@ -325,11 +326,12 @@ class EnhancedOrchestrator:
             
             print(f"[ORCHESTRATOR] Stream complete. {chunk_count} chunks, total length: {len(full_response)}")
             
-            # Save agent message
+            # Save agent message with agent type in metadata
             await sync_to_async(Message.objects.create)(
                 session=session,
                 role='agent',
-                content=full_response
+                content=full_response,
+                metadata={'agent_type': selected_agent}
             )
             
             # Log completion
