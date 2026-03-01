@@ -6,7 +6,6 @@ import {
     Heart,
     BookOpen,
     Utensils,
-    ShoppingBag,
     TrendingUp,
     MessageSquare,
     Clock,
@@ -132,8 +131,7 @@ const Dashboard = () => {
                             color === 'card-wellness' ? 'text-teal-400' :
                                 color === 'card-study' ? 'text-blue-400' :
                                     color === 'card-meal' ? 'text-green-400' :
-                                        color === 'card-shopping' ? 'text-amber-400' :
-                                            'text-gray-400'
+                                        'text-gray-400'
                     }
                 />
             </AreaChart>
@@ -225,11 +223,11 @@ const Dashboard = () => {
                             value="AI"
                             label="Command Center"
                             icon={MessageSquare}
-                            color="card-shopping"
+                            color="card-productivity"
                             delay={0.4}
                             onClick={() => navigate('/chat')}
                         >
-                            <TinyChart color="card-shopping" />
+                            <TinyChart color="card-productivity" />
                         </BentoCard>
                     </div>
 

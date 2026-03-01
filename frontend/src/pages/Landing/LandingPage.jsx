@@ -7,7 +7,6 @@ import {
   Brain,
   BookOpen,
   HeartPulse,
-  ShoppingCart,
   ArrowRight,
   Zap,
   Shield,
@@ -131,7 +130,7 @@ const Hero = () => (
         className="mt-6 text-lg md:text-xl text-white/60 max-w-2xl mx-auto leading-relaxed"
       >
         LifeOS brings together AI-powered agents for meal planning, productivity,
-        studying, wellness, and shopping — all in one beautiful dashboard.
+        studying, and wellness — all in one beautiful dashboard.
       </motion.p>
 
       <motion.div
@@ -211,13 +210,6 @@ const features = [
     color: 'from-rose-500 to-pink-600',
     shadow: 'shadow-rose-500/20',
   },
-  {
-    icon: ShoppingCart,
-    title: 'Shopping',
-    desc: 'Smart shopping lists generated from your meal plans and personal needs.',
-    color: 'from-amber-500 to-orange-600',
-    shadow: 'shadow-amber-500/20',
-  },
 ];
 
 const Features = () => (
@@ -237,7 +229,7 @@ const Features = () => (
           </span>
         </h2>
         <p className="mt-4 text-white/50 max-w-xl mx-auto">
-          Five specialized AI agents working together to help you manage every
+          Four specialized AI agents working together to help you manage every
           aspect of your daily life.
         </p>
       </motion.div>
@@ -248,9 +240,7 @@ const Features = () => (
             key={f.title}
             variants={fadeUp}
             custom={i}
-            className={`group relative p-6 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10 hover:border-white/20 transition-all duration-300 hover:-translate-y-1 ${
-              i === 4 ? 'md:col-span-2 lg:col-span-1' : ''
-            }`}
+            className="group relative p-6 rounded-2xl bg-white/5 backdrop-blur-sm border border-white/10 hover:border-white/20 transition-all duration-300 hover:-translate-y-1"
           >
             <div
               className={`w-12 h-12 rounded-xl bg-gradient-to-br ${f.color} flex items-center justify-center mb-4 shadow-lg ${f.shadow} group-hover:scale-110 transition-transform`}
@@ -280,7 +270,7 @@ const steps = [
   {
     icon: Settings2,
     title: 'Customize Your Agents',
-    desc: 'Choose which AI agents you want — meals, productivity, study, wellness, or shopping.',
+    desc: 'Choose your AI agents — meals, productivity, study, and wellness.',
     color: 'from-purple-500 to-violet-600',
   },
   {

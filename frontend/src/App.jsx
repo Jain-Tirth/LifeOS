@@ -13,7 +13,6 @@ import Productivity from './pages/Productivity/Productivity';
 import Wellness from './pages/Wellness/Wellness';
 import Study from './pages/Study/Study';
 import MealPlanner from './pages/MealPlanner/MealPlanner';
-import Shopping from './pages/Shopping/Shopping';
 import './index.css';
 
 const ProtectedRoute = ({ children }) => {
@@ -68,11 +67,6 @@ function App() {
               <Route path="/meals" element={
                 <ProtectedRoute>
                   <MealPlanner />
-                </ProtectedRoute>
-              } />
-              <Route path="/shopping" element={
-                <ProtectedRoute>
-                  <Shopping />
                 </ProtectedRoute>
               } />
             </Routes>

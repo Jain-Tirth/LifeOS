@@ -6,7 +6,7 @@ import {
     Calendar, 
     BookOpen, 
     Heart, 
-    ShoppingBag, 
+    Utensils,
     LogOut,
     Menu,
     Bell
@@ -38,7 +38,7 @@ const Layout = ({ children }) => {
         { icon: Calendar, label: 'Tasks', path: '/productivity' }, // Placeholder route
         { icon: BookOpen, label: 'Study', path: '/study' }, // Placeholder route
         { icon: Heart, label: 'Wellness', path: '/wellness' }, // Placeholder route
-        { icon: ShoppingBag, label: 'Meals', path: '/meals' }, // Placeholder route
+        { icon: Utensils, label: 'Meals', path: '/meals' }, // Placeholder route
     ];
 
     return (

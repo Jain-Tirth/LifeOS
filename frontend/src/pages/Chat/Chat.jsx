@@ -49,13 +49,6 @@ const AGENT_META = {
         icon: '💚',
         route: '/wellness',
     },
-    shopping: {
-        key: 'shopping_agent',
-        label: 'Shopping',
-        color: 'amber',
-        icon: '🛒',
-        route: '/shopping',
-    },
 };
 
 function detectAgentKey(agentName) {
@@ -64,7 +57,6 @@ function detectAgentKey(agentName) {
     if (name.includes('productivity') || name.includes('task')) return 'productivity';
     if (name.includes('study') || name.includes('buddy')) return 'study';
     if (name.includes('wellness') || name.includes('health')) return 'wellness';
-    if (name.includes('shopping')) return 'shopping';
     // Also handle the raw backend agent key names
     if (name === 'orchestrator' || name === 'agent') return null;
     return null;
