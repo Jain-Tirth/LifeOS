@@ -41,6 +41,14 @@
     @apply rounded-full transition-colors;
   }
 
+  /* Hardware acceleration for scroll containers */
+  .scroll-gpu {
+    backface-visibility: hidden;
+    transform: translateZ(0);
+    -webkit-font-smoothing: subpixel-antialiased;
+    will-change: scroll-position;
+  }
+
   .dark ::-webkit-scrollbar-thumb {
     @apply bg-white/10 hover:bg-white/20;
   }
