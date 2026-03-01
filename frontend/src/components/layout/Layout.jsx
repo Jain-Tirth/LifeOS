@@ -33,7 +33,7 @@ const Layout = ({ children }) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     const navItems = [
-        { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+        { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
         { icon: MessageSquare, label: 'Orchestrator', path: '/chat' },
         { icon: Calendar, label: 'Tasks', path: '/productivity' }, // Placeholder route
         { icon: BookOpen, label: 'Study', path: '/study' }, // Placeholder route
@@ -97,10 +97,13 @@ const Layout = ({ children }) => {
                     <h1 className="text-xl font-bold text-white font-display">LifeOS</h1>
                 </div>
                 <div className="flex items-center gap-4">
-                     <button className="relative p-2 text-white/70 hover:text-white transition-colors">
+                    {/* <button 
+                        onClick={() => alert('No new notifications')}
+                        className="relative p-2 text-white/70 hover:text-white transition-colors"
+                     >
                         <Bell size={20} />
                         <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-                    </button>
+                    </button> */}
                     <button 
                         onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                         className="p-2 text-white"
@@ -141,17 +144,22 @@ const Layout = ({ children }) => {
             )}
 
             {/* Main Content */}
-            <main className="flex-1 lg:ml-72 min-h-screen pt-20 lg:pt-0 p-6 lg:p-10 overflow-x-hidden">
-                <div className="max-w-7xl mx-auto h-full">
+            <main className="flex-1 lg:ml-72 h-screen overflow-hidden pt-20 lg:pt-4 p-4 lg:p-6 lg:pb-0">
+                <div className="max-w-7xl mx-auto flex flex-col h-full overflow-hidden">
                     {/* Desktop Header Actions */}
-                    <div className="hidden lg:flex justify-end items-center mb-8 gap-4">
-                         <button className="relative p-3 rounded-full bg-white/5 border border-white/10 text-white/70 hover:text-white hover:bg-white/10 transition-all hover:scale-105">
+                    <div className="hidden lg:flex justify-end items-center mb-0 gap-4 absolute top-6 right-6 z-50">
+                         {/* <button 
+                            onClick={() => alert('No new notifications')}
+                            className="relative p-3 rounded-full bg-white/5 border border-white/10 text-white/70 hover:text-white hover:bg-white/10 transition-all hover:scale-105"
+                         >
                             <Bell size={20} />
                             <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full animate-ping"></span>
                             <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full"></span>
-                        </button>
+                        </button> */}
                     </div>
-                    {children}
+                    <div className="flex-1 overflow-y-auto w-full pb-6 scroll-gpu scroll-smooth">
+                        {children}
+                    </div>
                 </div>
             </main>
         </div>
