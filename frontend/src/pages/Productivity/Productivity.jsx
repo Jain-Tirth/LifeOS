@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, Circle, Plus, AlertCircle, Clock, Trash2, X, Loader2, MoreVertical, Edit2 } from 'lucide-react';
+import { CheckCircle, Circle, Plus, AlertCircle, Clock, Trash2, X, Loader2, MoreVertical, Edit2, Play, Pause, RotateCcw } from 'lucide-react';
 import { getTasks, updateTask, createTask, deleteTask } from '../../api/tasks';
 import { useToast } from '../../context/ToastContext';
 
@@ -14,6 +14,48 @@ const Productivity = () => {
     const [adding, setAdding] = useState(false);
     const [expandedTask, setExpandedTask] = useState(null);
     const toast = useToast();
+
+    // Timer States
+    const [timerActive, setTimerActive] = useState(false);
+    const [focusDuration, setFocusDuration] = useState(25 * 60); // default 25 mins
+    const [focusTime, setFocusTime] = useState(25 * 60);
+
+    useEffect(() => {
+        let interval = null;
+        if (timerActive && focusTime > 0) {
+            interval = setInterval(() => {
+                setFocusTime((time) => time - 1);
+            }, 1000);
+        } else if (focusTime === 0 && timerActive) {
+            setTimerActive(false);
+            toast.success('Focus session complete! Take a break.');
+            // Reset to selected duration on complete
+            setFocusTime(focusDuration);
+        }
+        return () => clearInterval(interval);
+    }, [timerActive, focusTime, focusDuration, toast]);
+
+    const toggleTimer = () => {
+        setTimerActive(!timerActive);
+    };
+
+    const resetTimer = () => {
+        setTimerActive(false);
+        setFocusTime(focusDuration);
+    };
+
+    const handleDurationChange = (e) => {
+        const newDuration = parseInt(e.target.value, 10) * 60;
+        setFocusDuration(newDuration);
+        setFocusTime(newDuration);
+        setTimerActive(false);
+    };
+
+    const formatTime = (seconds) => {
+        const m = Math.floor(seconds / 60);
+        const s = seconds % 60;
+        return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    };
 
     useEffect(() => {
         fetchAllTasks();
@@ -120,9 +162,9 @@ const Productivity = () => {
 
     return (
         <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="space-y-8"
+            className="space-y-8 scroll-gpu"
         >
             <header className="flex justify-between items-center">
                 <div>
@@ -161,15 +203,53 @@ const Productivity = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="p-6 rounded-3xl glass-card bg-purple-500/5 border-purple-500/10">
                     <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-xl font-bold text-white">Focus Timer</h3>
-                        <Clock className="text-purple-400" />
+                        <h3 className="text-xl font-bold text-white mb-2">Focus Timer</h3>
+                        <div className="flex gap-2">
+                             <select
+                                value={focusDuration / 60}
+                                onChange={handleDurationChange}
+                                disabled={timerActive}
+                                className="bg-white/5 border border-white/10 text-white/70 text-sm rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                             >
+                                <option value={15} className="bg-slate-900">15 min</option>
+                                <option value={25} className="bg-slate-900">25 min</option>
+                                <option value={50} className="bg-slate-900">50 min</option>
+                             </select>
+                            <Clock className="text-purple-400" />
+                        </div>
                     </div>
-                    <div className="text-center py-10">
-                        <div className="text-6xl font-bold text-white font-display text-glow mb-4">25:00</div>
-                        <p className="text-white/40">Pomodoro Status: Ready</p>
-                        <button className="mt-6 px-8 py-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors">
-                            Start Focus
-                        </button>
+                    <div className="text-center py-6">
+                        <div className="text-6xl font-bold text-white font-display text-glow mb-4">
+                            {formatTime(focusTime)}
+                        </div>
+                        <p className="text-white/40 mb-6">
+                            {timerActive ? 'Focusing...' : focusTime > 0 ? 'Ready to focus?' : 'Session Complete!'}
+                        </p>
+                        
+                        <div className="flex items-center justify-center gap-4">
+                            <button
+                                onClick={toggleTimer}
+                                className={`flex items-center gap-2 px-8 py-3 rounded-full font-medium transition-colors ${
+                                    timerActive
+                                    ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/30'
+                                    : 'bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-500/25'
+                                }`}
+                            >
+                                {timerActive ? (
+                                    <><Pause size={18} /> Pause</>
+                                ) : (
+                                    <><Play size={18} /> Start</>
+                                )}
+                            </button>
+                            
+                            <button 
+                                onClick={resetTimer}
+                                className="p-3 bg-white/5 hover:bg-white/10 text-white/60 hover:text-white rounded-full transition-colors border border-white/10"
+                                title="Reset Timer"
+                            >
+                                <RotateCcw size={18} />
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -200,7 +280,7 @@ const Productivity = () => {
             </div>
 
             {/* Task List */}
-            <div className="rounded-3xl glass-card overflow-hidden">
+            <div className="rounded-3xl bg-black/20 backdrop-blur-sm border border-white/10 overflow-hidden shadow-xl">
                 <div className="flex border-b border-white/10">
                     {filterTabs.map((tab) => (
                         <button
