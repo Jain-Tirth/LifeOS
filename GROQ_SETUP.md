@@ -7,7 +7,6 @@ Your LifeOS now uses **Groq** instead of Gemini for ALL agents:
 - ✅ Productivity Agent  
 - ✅ Wellness Agent
 - ✅ Meal Planner Agent
-- ✅ Shopping Agent
 - ✅ Intent Classifier (routing)
 
 ## Why Groq is Better
@@ -51,7 +50,7 @@ Go to http://127.0.0.1:8000/ and try chatting!
 Example messages to test:
 - "Help me plan my study schedule for next week"
 - "Create a meal plan for 3 days"
-- "I need a shopping list for groceries"
+- "Plan my tasks for the next 2 days"
 
 ---
 
@@ -75,7 +74,6 @@ You can switch models in each agent file if needed:
    - `productivity_agent_groq.py`
    - `wellness_agent_groq.py`
    - `meal_planner_agent_groq.py`
-   - `shopping_agent_groq.py`
 
 2. **Updated Files**:
    - `orchestrator.py` - Now uses Groq agents
