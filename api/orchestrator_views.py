@@ -1,7 +1,7 @@
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated
 from django.http import StreamingHttpResponse
 from agents.models import AgentSession, MealPlan, Task, StudySession, WellnessActivity
 from agents.services.orchestrator import orchestrator
@@ -12,7 +12,6 @@ from .serializers import (
     StudySessionSerializer, 
     WellnessActivitySerializer
 )
-from asgiref.sync import async_to_sync
 import asyncio
 import json
 import logging
@@ -21,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def chat(request):
     """
     Send a message to the orchestrator for intelligent agent routing
@@ -41,7 +40,7 @@ def chat(request):
         try:
             session = AgentSession.objects.get(
                 session_id=session_id,
-                user=request.user if request.user.is_authenticated else None
+                user=request.user
             )
         except AgentSession.DoesNotExist:
             return Response({
@@ -58,7 +57,7 @@ def chat(request):
         result = loop.run_until_complete(
             orchestrator.process_message(
                 message=message,
-                user=request.user if request.user.is_authenticated else None,
+                user=request.user,
                 session=session,
                 force_agent=force_agent
             )
@@ -78,7 +77,7 @@ def chat(request):
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def chat_stream(request):
     """
     Stream agent responses in real-time using Server-Sent Events (SSE)
@@ -98,7 +97,7 @@ def chat_stream(request):
         try:
             session = AgentSession.objects.get(
                 session_id=session_id,
-                user=request.user if request.user.is_authenticated else None
+                user=request.user
             )
         except AgentSession.DoesNotExist:
             def error_stream():
@@ -127,7 +126,7 @@ def chat_stream(request):
                 try:
                     async for chunk in orchestrator.process_message_stream(
                         message=message,
-                        user=request.user if request.user.is_authenticated else None,
+                        user=request.user,
                         session=session,
                         force_agent=force_agent
                     ):
@@ -183,7 +182,7 @@ def chat_stream(request):
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_available_agents(request):
     """
     Get list of available agents
@@ -195,13 +194,13 @@ def get_available_agents(request):
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_user_sessions(request):
     """
-    Get all sessions for the user (handles unauthenticated)
+    Get all sessions for the current user
     """
     sessions = AgentSession.objects.filter(
-        user=request.user if request.user.is_authenticated else None
+        user=request.user
     ).order_by('-updated_at')
     
     session_data = []
@@ -218,7 +217,7 @@ def get_user_sessions(request):
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_session_messages(request, session_id):
     """
     Get all messages for a specific session
@@ -226,7 +225,7 @@ def get_session_messages(request, session_id):
     try:
         session = AgentSession.objects.get(
             session_id=session_id,
-            user=request.user if request.user.is_authenticated else None
+            user=request.user
         )
     except AgentSession.DoesNotExist:
         return Response({
@@ -249,7 +248,7 @@ def get_session_messages(request, session_id):
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def save_agent_response(request):
     """
     Generic endpoint to save agent response data to appropriate model
@@ -287,11 +286,7 @@ def save_agent_response(request):
         
         # Validate and save
         if serializer.is_valid():
-            # Set user if authenticated
-            if request.user.is_authenticated:
-                serializer.save(user=request.user)
-            else:
-                serializer.save()
+            serializer.save(user=request.user)
             
             logger.info(f"Agent response saved successfully for {agent_type}")
             
@@ -315,7 +310,7 @@ def save_agent_response(request):
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def bulk_save_agent_responses(request):
     """
     Bulk save multiple agent responses at once
@@ -367,10 +362,7 @@ def bulk_save_agent_responses(request):
             
             # Validate and save
             if serializer.is_valid():
-                if request.user.is_authenticated:
-                    obj = serializer.save(user=request.user)
-                else:
-                    obj = serializer.save()
+                serializer.save(user=request.user)
                 
                 saved_items.append({
                     'index': idx,
@@ -400,7 +392,7 @@ def bulk_save_agent_responses(request):
 
 
 @api_view(['DELETE'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def delete_session(request, session_id):
     """
     Delete a specific agent session and all its messages.
@@ -408,7 +400,7 @@ def delete_session(request, session_id):
     try:
         session = AgentSession.objects.get(
             session_id=session_id,
-            user=request.user if request.user.is_authenticated else None
+            user=request.user
         )
         session.delete()
         return Response({'success': True}, status=status.HTTP_204_NO_CONTENT)
@@ -419,7 +411,7 @@ def delete_session(request, session_id):
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def get_session_saved_items(request, session_id):
     """
     Get all items saved from a specific agent session
@@ -428,7 +420,7 @@ def get_session_saved_items(request, session_id):
     try:
         session = AgentSession.objects.get(
             session_id=session_id,
-            user=request.user if request.user.is_authenticated else None
+            user=request.user
         )
     except AgentSession.DoesNotExist:
         return Response({

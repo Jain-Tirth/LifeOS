@@ -4,7 +4,6 @@ Intent classifier for determining user intent and routing to appropriate agents
 from typing import Dict, Any, List, Optional
 from groq import Groq
 from django.conf import settings
-from asgiref.sync import sync_to_async
 import json
 import logging
 import os
@@ -57,17 +56,6 @@ class IntentClassifier:
             'routine',
             'streak',
             'wellness tracking'
-        ],
-        'shopping_agent': [
-            'shopping list',
-            'grocery shopping',
-            'budget',
-            'expenses',
-            'cost tracking',
-            'price comparison',
-            'deals',
-            'discounts',
-            'shopping budget'
         ],
         'meal_planner_agent': [
             'meal planning',
@@ -130,7 +118,7 @@ Available agents and their capabilities:
 - study_agent: Learning support, note organization, exam prep, study schedules, concept summarization, semantic search
 - productivity_agent: Task management, scheduling, goal setting, calendar integration, time management, progress tracking
 - wellness_agent: Exercise tracking, meditation, sleep, mood, health monitoring, habit streaks, wellness routines
-- shopping_agent: Meal planning, recipes, nutrition, grocery lists, shopping budgets, expense tracking
+- meal_planner_agent: Meal planning, recipes, nutrition guidance, food preferences, dietary constraints
 
 User message: "{user_message}"
 
@@ -146,7 +134,7 @@ Respond ONLY with valid JSON in this exact format:
 }}
 
 Rules:
-- primary_agent must be one of: study_agent, productivity_agent, wellness_agent, shopping_agent
+- primary_agent must be one of: study_agent, productivity_agent, wellness_agent, meal_planner_agent
 - confidence is 0.0 to 1.0
 - secondary_agents is optional array for multi-agent tasks
 - is_multi_agent is true if multiple agents needed
@@ -214,9 +202,9 @@ Rules:
                 scores[agent] = score
         
         if not scores:
-            # Default to planner if no match
+            # Default to a valid implemented agent if no strong match
             return {
-                'primary_agent': 'planner',
+                'primary_agent': 'productivity_agent',
                 'confidence': 0.3,
                 'secondary_agents': [],
                 'reasoning': 'Fallback classification - no clear intent detected',

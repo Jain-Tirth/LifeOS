@@ -1,7 +1,7 @@
 from rest_framework import viewsets, status
-from rest_framework.decorators import api_view, action
+from rest_framework.decorators import api_view, action, permission_classes
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticated
 from agents.models import (
     AgentSession, 
     Message, 
@@ -18,6 +18,8 @@ from .serializers import (
     StudySessionSerializer,
     WellnessActivitySerializer
 )
+from agents.services.orchestrator import orchestrator
+from asgiref.sync import async_to_sync
 import uuid
 import logging
 
@@ -27,6 +29,10 @@ logger = logging.getLogger(__name__)
 class AgentSessionViewSet(viewsets.ModelViewSet):
     queryset = AgentSession.objects.all()
     serializer_class = AgentSessionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return AgentSession.objects.filter(user=self.request.user).order_by('-updated_at')
     
     @action(detail=True, methods=['post'])
     def send_message(self, request, pk=None):
@@ -47,13 +53,28 @@ class AgentSessionViewSet(viewsets.ModelViewSet):
             content=content
         )
         
-        # TODO: Process with actual agent and get response
-        # For now, create a placeholder response
-        agent_response = Message.objects.create(
-            session=session,
-            role='agent',
-            content='This is a placeholder response. Agent integration pending.'
+        result = async_to_sync(orchestrator.process_message)(
+            message=content,
+            user=request.user,
+            session=session
         )
+
+        if not result.get('success'):
+            return Response(
+                {'error': result.get('error', 'Failed to process message')},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        agent_response = Message.objects.filter(
+            session=session,
+            role='agent'
+        ).order_by('-created_at').first()
+
+        if not agent_response:
+            return Response(
+                {'error': 'Agent response was not created'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
         
         return Response({
             'user_message': MessageSerializer(user_message).data,
@@ -64,13 +85,17 @@ class AgentSessionViewSet(viewsets.ModelViewSet):
 class MessageViewSet(viewsets.ModelViewSet):
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Message.objects.filter(session__user=self.request.user).order_by('created_at')
 
 
 class MealPlanViewSet(viewsets.ModelViewSet):
     """ViewSet for managing meal plans with enhanced save-to-agent logic"""
     queryset = MealPlan.objects.all()
     serializer_class = MealPlanSerializer
-    permission_classes = [AllowAny]  # Allow unauthenticated users to save
+    permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         """Filter meal plans by user and query parameters"""
@@ -126,7 +151,7 @@ class TaskViewSet(viewsets.ModelViewSet):
     """ViewSet for managing tasks with enhanced save-to-agent logic"""
     queryset = Task.objects.all()
     serializer_class = TaskSerializer
-    permission_classes = [AllowAny]  # Allow unauthenticated users to save
+    permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         """Filter tasks by user and query parameters"""
@@ -191,7 +216,7 @@ class StudySessionViewSet(viewsets.ModelViewSet):
     """ViewSet for managing study sessions with enhanced save-to-agent logic"""
     queryset = StudySession.objects.all()
     serializer_class = StudySessionSerializer
-    permission_classes = [AllowAny]  # Allow unauthenticated users to save
+    permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         """Filter study sessions by user and query parameters"""
@@ -244,7 +269,7 @@ class WellnessActivityViewSet(viewsets.ModelViewSet):
     """ViewSet for managing wellness activities with enhanced save-to-agent logic"""
     queryset = WellnessActivity.objects.all()
     serializer_class = WellnessActivitySerializer
-    permission_classes = [AllowAny]  # Allow unauthenticated users to save
+    permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         """Filter wellness activities by user and query parameters"""
@@ -300,6 +325,7 @@ class WellnessActivityViewSet(viewsets.ModelViewSet):
 
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def create_agent_session(request):
     """Create a new agent session"""
     agent_type = request.data.get('agent_type')

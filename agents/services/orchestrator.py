@@ -5,7 +5,6 @@ from typing import Dict, Any, Optional, List
 from agents.models import AgentSession, Message, User
 
 # Import Groq-based agents (faster, better rate limits)
-from .shopping_agent import shopping_agent_runner
 from .study_agent import study_agent_runner
 from .productivity_agent import productivity_agent_runner
 from .wellness_agent import wellness_agent_runner
@@ -29,7 +28,6 @@ class EnhancedOrchestrator:
     
     def __init__(self):
         self.agents = {
-            'shopping_agent': shopping_agent_runner,
             'study_agent': study_agent_runner,
             'productivity_agent': productivity_agent_runner,
             'wellness_agent': wellness_agent_runner,
@@ -308,7 +306,7 @@ class EnhancedOrchestrator:
             agent_runner = self.agents[selected_agent]
             full_response = ""
             
-            print(f"[ORCHESTRATOR] Starting stream from {selected_agent}")
+            logger.debug(f"Starting stream from {selected_agent}")
             
             chunk_count = 0
             async for chunk in agent_runner.run_agent_stream(
@@ -317,14 +315,14 @@ class EnhancedOrchestrator:
             ):
                 if chunk:
                     chunk_count += 1
-                    print(f"[ORCHESTRATOR] Chunk {chunk_count}: {chunk[:50]}...")
+                    logger.debug(f"Chunk {chunk_count} received from {selected_agent}")
                     full_response += chunk
                     yield {
                         'type': 'chunk',
                         'content': chunk
                     }
             
-            print(f"[ORCHESTRATOR] Stream complete. {chunk_count} chunks, total length: {len(full_response)}")
+            logger.debug(f"Stream complete for {selected_agent}. chunks={chunk_count} length={len(full_response)}")
             
             # Save agent message with agent type in metadata
             await sync_to_async(Message.objects.create)(
@@ -400,7 +398,7 @@ class EnhancedOrchestrator:
     
     def get_all_agent_types(self) -> List[str]:
         """Return list of all planned agent types (implemented + planned)"""
-        return ['study_agent', 'productivity_agent', 'wellness_agent', 'shopping_agent']
+        return ['study_agent', 'productivity_agent', 'wellness_agent', 'meal_planner_agent']
 
 
 # Singleton instance
