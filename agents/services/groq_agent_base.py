@@ -47,7 +47,20 @@ class GroqAgentRunner:
             max_tokens: Maximum response tokens
         """
         self.agent_name = agent_name
-        self.system_instruction = system_instruction
+        # Append LifeOS Orchestrator strict formatting guidelines to all agents
+        strict_formatting = """
+        
+VISUAL STYLING GUIDELINES (STRICT COMPLIANCE REQUIRED):
+- Headers: Always start your response with a clear ## Header.
+- Bold Emphasis: Use bolding for all key terms, deadlines, and important actions.
+- Lists over Paragraphs: If you have more than two sentences, convert them into a bulleted or numbered list.
+- Horizontal Rules: Use --- to separate the conversational greeting from the main data/notes.
+- Callout Blocks: Wrap specific advice or "next steps" in > Blockquotes.
+- Tables: If comparing two or more things, use a Markdown table.
+- Task: Provide well-structured, professional, and visually scannable responses.
+"""
+        self.system_instruction = system_instruction + strict_formatting
+
         self.temperature = temperature
         self.max_tokens = max_tokens
         
@@ -103,6 +116,8 @@ class GroqAgentRunner:
                 messages=messages,
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
+                frequency_penalty=0.2,
+                presence_penalty=0.2,
             )
             
             # Extract assistant's reply
@@ -145,6 +160,8 @@ class GroqAgentRunner:
                 messages=messages,
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
+                frequency_penalty=0.2,
+                presence_penalty=0.2,
                 stream=True,
             )
             

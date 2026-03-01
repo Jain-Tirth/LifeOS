@@ -265,12 +265,24 @@ function extractTimes(content) {
     return Object.keys(times).length > 0 ? times : null;
 }
 
+function stripChatter(content) {
+    // The new system prompt adds "---" to separate greeting from actual data
+    const parts = content.split('---');
+    // If we have a divider, return everything after it, trimmed
+    if (parts.length > 1) {
+        return parts.slice(1).join('---').trim();
+    }
+    // Fallback if no divider is present
+    return content;
+}
+
 function parseMealData(content) {
-    const recipeName = extractRecipeName(content);
-    const sections = splitIntoSections(content);
+    const cleanContent = stripChatter(content);
+    const recipeName = extractRecipeName(cleanContent);
+    const sections = splitIntoSections(cleanContent);
 
     // Detect meal_type
-    const lower = content.toLowerCase();
+    const lower = cleanContent.toLowerCase();
     let meal_type = 'dinner';
     if (lower.includes('breakfast')) meal_type = 'breakfast';
     else if (lower.includes('lunch')) meal_type = 'lunch';
@@ -283,7 +295,7 @@ function parseMealData(content) {
     }
     if (ingredients.length === 0) {
         // Try to find ingredients in the full content
-        const ingBlockMatch = content.match(/(?:ingredients?|what you'?ll need)[:\s]*\n((?:[\t ]*[-*•]\s*.+\n?)+)/i);
+        const ingBlockMatch = cleanContent.match(/(?:ingredients?|what you'?ll need)[:\s]*\n((?:[\t ]*[-*•]\s*.+\n?)+)/i);
         if (ingBlockMatch) {
             ingredients = extractIngredients(ingBlockMatch[1]);
         }
@@ -301,14 +313,14 @@ function parseMealData(content) {
                 nonIngredientParts.push(val);
             }
         }
-        instructions = nonIngredientParts.join('\n').trim() || content;
+        instructions = nonIngredientParts.join('\n').trim() || cleanContent;
     }
 
     // Nutritional info
-    const nutritional_info = extractNutrition(sections.nutrition || content);
+    const nutritional_info = extractNutrition(sections.nutrition || cleanContent);
 
     // Times
-    const times = extractTimes(content);
+    const times = extractTimes(cleanContent);
 
     // Preferences/metadata
     const preferences = {};
@@ -338,9 +350,10 @@ function extractTitle(text) {
 }
 
 function parseTaskData(content) {
-    const title = extractTitle(content);
+    const cleanContent = stripChatter(content);
+    const title = extractTitle(cleanContent);
     // Try to identify multiple tasks
-    const lines = content.split('\n');
+    const lines = cleanContent.split('\n');
     const tasks = [];
     for (const line of lines) {
         const trimmed = line.trim();
@@ -353,9 +366,9 @@ function parseTaskData(content) {
 
     return {
         title: title || 'AI-Generated Task',
-        description: content,
-        priority: content.toLowerCase().includes('urgent') ? 'urgent'
-            : content.toLowerCase().includes('high priority') ? 'high'
+        description: cleanContent,
+        priority: cleanContent.toLowerCase().includes('urgent') ? 'urgent'
+            : cleanContent.toLowerCase().includes('high priority') ? 'high'
                 : 'medium',
         status: 'todo',
         // We'll also return extracted sub-tasks for potential multi-save
@@ -364,33 +377,35 @@ function parseTaskData(content) {
 }
 
 function parseStudyData(content) {
-    const title = extractTitle(content);
+    const cleanContent = stripChatter(content);
+    const title = extractTitle(cleanContent);
     // Try to detect subject/topic
     let subject = title || 'Study Session';
     let topic = null;
-    const topicMatch = content.match(/(?:topic|subject|focus)[:\s]+([^\n]+)/i);
+    const topicMatch = cleanContent.match(/(?:topic|subject|focus)[:\s]+([^\n]+)/i);
     if (topicMatch) {
         subject = topicMatch[1].trim().slice(0, 200);
     }
 
     // Duration heuristic
     let duration = 60;
-    const durMatch = content.match(/(\d+)\s*(?:min(?:utes?)?|hrs?|hours?)/i);
+    const durMatch = cleanContent.match(/(\d+)\s*(?:min(?:utes?)?|hrs?|hours?)/i);
     if (durMatch) {
         duration = parseInt(durMatch[1]);
-        if (content.match(/hours?/i) && duration < 10) duration *= 60;
+        if (cleanContent.match(/hours?/i) && duration < 10) duration *= 60;
     }
 
     return {
         subject,
         topic,
         duration,
-        notes: content,
+        notes: cleanContent,
     };
 }
 
 function parseWellnessData(content) {
-    const lower = content.toLowerCase();
+    const cleanContent = stripChatter(content);
+    const lower = cleanContent.toLowerCase();
     let activity_type = 'exercise';
     if (lower.includes('meditat')) activity_type = 'meditation';
     else if (lower.includes('sleep')) activity_type = 'sleep';
@@ -398,16 +413,16 @@ function parseWellnessData(content) {
     else if (lower.includes('mood') || lower.includes('mental')) activity_type = 'mood';
 
     let duration = null;
-    const durMatch = content.match(/(\d+)\s*(?:min(?:utes?)?|hrs?|hours?)/i);
+    const durMatch = cleanContent.match(/(\d+)\s*(?:min(?:utes?)?|hrs?|hours?)/i);
     if (durMatch) {
         duration = parseInt(durMatch[1]);
-        if (content.match(/hours?/i) && duration < 10) duration *= 60;
+        if (cleanContent.match(/hours?/i) && duration < 10) duration *= 60;
     }
 
     return {
         activity_type,
         duration,
-        notes: content,
+        notes: cleanContent,
         recorded_at: new Date().toISOString(),
     };
 }
@@ -567,8 +582,10 @@ const Chat = () => {
             onChunk: (chunk) => {
                 setMessages(prev => {
                     const newMessages = [...prev];
-                    const lastMsg = newMessages[newMessages.length - 1];
+                    const lastMsgIndex = newMessages.length - 1;
+                    const lastMsg = { ...newMessages[lastMsgIndex] };
                     lastMsg.content += chunk;
+                    newMessages[lastMsgIndex] = lastMsg;
                     return newMessages;
                 });
             },
@@ -911,7 +928,7 @@ const Chat = () => {
     ];
 
     return (
-        <div className="flex flex-col h-[calc(100vh-140px)]">
+        <div className="flex flex-col h-full">
             {/* Session Switcher */}
             <SessionSwitcher
                 sessions={sessions}
@@ -921,15 +938,15 @@ const Chat = () => {
                 onDeleteSession={handleDeleteSession}
             />
 
-            <header className="mb-6">
-                <h2 className="text-3xl font-bold text-white dark:text-white mb-1 font-display">Orchestrator</h2>
-                <p className="text-white/60">Your AI command center — responses are auto-routed to the right agent.</p>
+            <header className="mb-6 pl-14 pt-2 lg:pl-0 lg:pt-0 block relative">
+                <h2 className="text-3xl font-bold text-white dark:text-white mb-1 ml-8 lg:ml-12 font-display">Orchestrator</h2>
+                <p className="text-white/60 text-sm sm:text-base ml-8 lg:ml-12">Your AI command center — responses are auto-routed to the right agent.</p>
             </header>
 
             <div
                 ref={messagesContainerRef}
                 onScroll={handleScroll}
-                className="flex-1 overflow-y-auto pr-4 space-y-6 scrollbar-hide"
+                className="flex-1 overflow-y-auto pr-4 space-y-6 scrollbar-hide scroll-gpu scroll-smooth"
             >
                 {loading ? (
                     <div className="h-full flex flex-col items-center justify-center text-white/40">
