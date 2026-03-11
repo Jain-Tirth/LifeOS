@@ -58,6 +58,105 @@ class User(AbstractBaseUser, PermissionsMixin):
         return self.first_name or self.email
 
 
+class UserProfile(models.Model):
+    """
+    Persistent user preferences that ALL agents can access.
+    This is the 'memory' that makes LifeOS actually personal.
+    Auto-created when a user registers.
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    
+    # Temporal
+    timezone = models.CharField(
+        max_length=50, default='Asia/Kolkata',
+        help_text="User's timezone for scheduling and reminders"
+    )
+    
+    # Dietary (Meal Planner Agent)
+    dietary_preferences = models.JSONField(
+        default=dict, blank=True,
+        help_text="e.g. {'type': 'vegetarian', 'allergies': ['nuts'], 'cuisine': ['Indian', 'Italian']}"
+    )
+    
+    # Work & Productivity (Productivity Agent)
+    work_hours = models.JSONField(
+        default=dict, blank=True,
+        help_text="e.g. {'start': '09:00', 'end': '18:00', 'days': ['Mon','Tue','Wed','Thu','Fri']}"
+    )
+    
+    # Wellness (Wellness Agent)
+    fitness_level = models.CharField(
+        max_length=20, 
+        choices=[
+            ('beginner', 'Beginner'),
+            ('intermediate', 'Intermediate'),
+            ('advanced', 'Advanced'),
+        ],
+        default='intermediate'
+    )
+    health_conditions = models.JSONField(
+        default=list, blank=True,
+        help_text="List of conditions agents should be aware of"
+    )
+    
+    # Study (Study Agent)
+    learning_style = models.CharField(
+        max_length=20,
+        choices=[
+            ('visual', 'Visual'),
+            ('auditory', 'Auditory'),
+            ('reading', 'Reading/Writing'),
+            ('kinesthetic', 'Kinesthetic'),
+        ],
+        default='visual'
+    )
+    
+    # Goals — the big picture that ties all agents together
+    goals = models.JSONField(
+        default=list, blank=True,
+        help_text="e.g. [{'goal': 'Lose 5kg', 'deadline': '2026-06-01', 'category': 'wellness'}]"
+    )
+    
+    # Free-form notes for agents
+    about_me = models.TextField(
+        blank=True, default='',
+        help_text="Anything the user wants agents to always know about them"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Profile: {self.user.email}"
+    
+    def get_agent_context(self, agent_type: str | None = None) -> dict:
+        """
+        Build a context dict that can be injected into any agent's system prompt.
+        Optionally filter by agent_type for agent-specific preferences.
+        """
+        context = {
+            'name': self.user.get_full_name(),
+            'timezone': self.timezone,
+            'goals': self.goals,
+            'about_me': self.about_me,
+        }
+        
+        if agent_type in ('meal_planner_agent', None):
+            context['dietary_preferences'] = self.dietary_preferences
+            
+        if agent_type in ('productivity_agent', None):
+            context['work_hours'] = self.work_hours
+            
+        if agent_type in ('wellness_agent', None):
+            context['fitness_level'] = self.fitness_level
+            context['health_conditions'] = self.health_conditions
+            
+        if agent_type in ('study_agent', None):
+            context['learning_style'] = self.learning_style
+        
+        return context
+
+
 class AgentSession(models.Model):
     """Store agent conversation sessions"""
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
