@@ -1,5 +1,7 @@
 """
-Intent classifier for determining user intent and routing to appropriate agents
+Intent classifier for determining user intent and routing to appropriate agents.
+Optimized: keyword-first classification, LLM only for ambiguous cases.
+This halves API usage since we no longer burn an LLM call for every single message.
 """
 from typing import Dict, Any, List, Optional
 from groq import Groq
@@ -10,83 +12,57 @@ import os
 
 logger = logging.getLogger(__name__)
 
+
 class IntentClassifier:
     """
-    Classifies user intent using Groq AI to route messages to appropriate agents
+    Classifies user intent using a two-tier approach:
+    1. Fast keyword matching (zero API cost, instant)
+    2. LLM classification only when keywords are ambiguous (confidence < threshold)
     """
+    
+    # Confidence threshold: if keyword score is above this, skip the LLM call
+    KEYWORD_CONFIDENCE_THRESHOLD = 0.5
     
     AGENT_INTENTS = {
         'study_agent': [
-            'study',
-            'learning',
-            'exam preparation',
-            'notes',
-            'remember',
-            'recall',
-            'revision',
-            'syllabus',
-            'summarize',
-            'concepts',
-            'semantic search',
-            'study schedule'
+            'study', 'learning', 'exam', 'notes', 'remember', 'recall',
+            'revision', 'syllabus', 'summarize', 'concepts', 'quiz',
+            'flashcard', 'homework', 'assignment', 'lecture', 'chapter',
+            'textbook', 'academic', 'semester', 'gpa', 'grade',
+            'study schedule', 'study plan', 'study session',
         ],
         'productivity_agent': [
-            'task management',
-            'scheduling',
-            'calendar',
-            'goals',
-            'deadlines',
-            'productivity',
-            'time management',
-            'project planning',
-            'weekly plan',
-            'todo',
-            'organize work'
+            'task', 'todo', 'to-do', 'scheduling', 'calendar', 'goals',
+            'deadline', 'productivity', 'time management', 'project',
+            'weekly plan', 'organize', 'prioritize', 'kanban', 'sprint',
+            'meeting', 'agenda', 'checklist', 'milestone', 'plan my day',
+            'plan my week', 'what should i do', 'schedule',
         ],
         'wellness_agent': [
-            'exercise',
-            'meditation',
-            'sleep',
-            'mood',
-            'health',
-            'fitness',
-            'wellbeing',
-            'mental health',
-            'habits',
-            'routine',
-            'streak',
-            'wellness tracking'
+            'exercise', 'meditation', 'sleep', 'mood', 'health', 'fitness',
+            'wellbeing', 'mental health', 'habits', 'routine', 'streak',
+            'workout', 'yoga', 'running', 'steps', 'calories burned',
+            'stress', 'anxiety', 'mindfulness', 'breathing', 'hydration',
+            'water', 'weight', 'body', 'gym', 'cardio', 'stretch',
         ],
         'meal_planner_agent': [
-            'meal planning',
-            'recipe suggestions',
-            'cooking',
-            'food preferences',
-            'diet',
-            'nutrition',
-            'meal prep',
-            'weekly meal plan',
-            'recipes',
-            'dietary restrictions',
-            'vegan',
-            'vegetarian',
-            'keto',
-            'gluten-free',
-            'balanced diet',
-            'nutritional info'
+            'meal', 'recipe', 'cooking', 'food', 'diet', 'nutrition',
+            'meal prep', 'meal plan', 'breakfast', 'lunch', 'dinner',
+            'snack', 'ingredient', 'grocery', 'vegan', 'vegetarian',
+            'keto', 'gluten-free', 'protein', 'carb', 'calorie',
+            'what should i eat', 'what to cook', 'hungry', 'cook',
         ]
     }
     
     def __init__(self):
-        # Configure Groq API
         api_key = os.getenv('GROQ_API_KEY') or getattr(settings, 'GROQ_API_KEY', None)
         if not api_key:
-            logger.warning("No Groq API key found. Intent classification will use fallback.")
+            logger.warning("No Groq API key found. Intent classification will use keyword-only mode.")
             self.client = None
         else:
             self.client = Groq(api_key=api_key)
         
-        self.model = 'llama-3.3-70b-versatile'  # Fast and accurate for classification
+        self.model = 'llama-3.3-70b-versatile'
     
     async def classify_intent(
         self, 
@@ -94,133 +70,151 @@ class IntentClassifier:
         conversation_history: Optional[List[Dict[str, str]]] = None
     ) -> Dict[str, Any]:
         """
-        Classify user intent and determine which agent(s) should handle the request
-        
-        Args:
-            user_message: The user's message
-            conversation_history: Optional conversation context
-            
-        Returns:
-            Dict with primary_agent, confidence, secondary_agents, and reasoning
+        Two-tier intent classification:
+        1. Try keyword matching first (free, instant)
+        2. Only call LLM if keyword confidence is too low
         """
-        # Build context from conversation history
-        context = ""
-        if conversation_history:
-            context = "\n".join([
-                f"{msg['role']}: {msg['content']}" 
-                for msg in conversation_history[-5:]  # Last 5 messages
-            ])
+        # Tier 1: Keyword classification (always runs)
+        keyword_result = self._keyword_classification(user_message)
         
-        # Create classification prompt
-        prompt = f"""Analyze the following user message and classify the intent to route to the appropriate agent.
-
-Available agents and their capabilities:
-- study_agent: Learning support, note organization, exam prep, study schedules, concept summarization, semantic search
-- productivity_agent: Task management, scheduling, goal setting, calendar integration, time management, progress tracking
-- wellness_agent: Exercise tracking, meditation, sleep, mood, health monitoring, habit streaks, wellness routines
-- meal_planner_agent: Meal planning, recipes, nutrition guidance, food preferences, dietary constraints
-
-User message: "{user_message}"
-
-{f"Conversation context:{context}" if context else ""}
-
-Respond ONLY with valid JSON in this exact format:
-{{
-    "primary_agent": "agent_name",
-    "confidence": 0.95,
-    "secondary_agents": ["agent_name"],
-    "reasoning": "Brief explanation",
-    "is_multi_agent": false
-}}
-
-Rules:
-- primary_agent must be one of: study_agent, productivity_agent, wellness_agent, meal_planner_agent
-- confidence is 0.0 to 1.0
-- secondary_agents is optional array for multi-agent tasks
-- is_multi_agent is true if multiple agents needed
-"""
-        
-        try:
-            if not self.client:
-                # No API key configured, use fallback
-                return self._fallback_classification(user_message)
-            
-            # Call Groq API
-            chat_completion = self.client.chat.completions.create(
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are an intent classification system. Always respond with valid JSON only."
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                model=self.model,
-                temperature=0.1,  # Low temperature for consistent classification
-                max_tokens=500,
+        # If keyword matching is confident enough, use it directly — saves an LLM call
+        if keyword_result['confidence'] >= self.KEYWORD_CONFIDENCE_THRESHOLD:
+            logger.info(
+                f"Intent classified via keywords: {keyword_result['primary_agent']} "
+                f"(confidence: {keyword_result['confidence']:.2f})"
             )
-            
-            # Parse JSON response
-            response_text = chat_completion.choices[0].message.content.strip()
-            
-            # Remove markdown code blocks if present
-            if response_text.startswith('```'):
-                response_text = response_text.split('```')[1]
-                if response_text.startswith('json'):
-                    response_text = response_text[4:]
-            
-            result = json.loads(response_text.strip())
-            
-            # Validate result
-            if 'primary_agent' not in result:
-                raise ValueError("Missing primary_agent in response")
-            
-            if result['primary_agent'] not in self.AGENT_INTENTS:
-                # Fallback to keyword matching
-                return self._fallback_classification(user_message)
-            
-            logger.info(f"Intent classified: {result['primary_agent']} (confidence: {result.get('confidence', 0)})")
-            return result
-            
-        except Exception as e:
-            logger.error(f"Intent classification error: {e}")
-            # Fallback to keyword-based classification
-            return self._fallback_classification(user_message)
+            return keyword_result
+        
+        # Tier 2: LLM classification for ambiguous messages
+        if self.client:
+            try:
+                llm_result = await self._llm_classification(user_message, conversation_history)
+                logger.info(
+                    f"Intent classified via LLM: {llm_result['primary_agent']} "
+                    f"(confidence: {llm_result.get('confidence', 0):.2f})"
+                )
+                return llm_result
+            except Exception as e:
+                logger.error(f"LLM classification failed, using keyword fallback: {e}")
+        
+        # Fallback: return keyword result even if low confidence
+        return keyword_result
     
-    def _fallback_classification(self, user_message: str) -> Dict[str, Any]:
+    def _keyword_classification(self, user_message: str) -> Dict[str, Any]:
         """
-        Fallback keyword-based classification if AI classification fails
+        Enhanced keyword-based classification with weighted scoring.
         """
         user_message_lower = user_message.lower()
         scores = {}
         
         for agent, keywords in self.AGENT_INTENTS.items():
-            score = sum(1 for keyword in keywords if keyword in user_message_lower)
+            score = 0
+            matched_keywords = []
+            for keyword in keywords:
+                if keyword in user_message_lower:
+                    # Longer keyword matches are worth more (more specific)
+                    weight = len(keyword.split())
+                    score += weight
+                    matched_keywords.append(keyword)
+            
             if score > 0:
-                scores[agent] = score
+                scores[agent] = {
+                    'score': score,
+                    'matched': matched_keywords
+                }
         
         if not scores:
-            # Default to a valid implemented agent if no strong match
             return {
                 'primary_agent': 'productivity_agent',
-                'confidence': 0.3,
+                'confidence': 0.2,
                 'secondary_agents': [],
-                'reasoning': 'Fallback classification - no clear intent detected',
-                'is_multi_agent': False
+                'reasoning': 'No keyword matches — defaulting to productivity',
+                'is_multi_agent': False,
+                'classification_method': 'keyword_default'
             }
         
-        primary_agent = max(scores.items(), key=lambda x: x[1])[0]
-        confidence = min(scores[primary_agent] / 3.0, 1.0)  # Normalize
+        # Sort by score
+        sorted_agents = sorted(scores.items(), key=lambda x: x[1]['score'], reverse=True)
+        primary = sorted_agents[0]
+        
+        # Normalize confidence (cap at 1.0)
+        max_possible = 5  # rough max for typical messages
+        confidence = min(primary[1]['score'] / max_possible, 1.0)
+        
+        # Check for multi-agent case (two agents with similar scores)
+        secondary = []
+        if len(sorted_agents) > 1:
+            second = sorted_agents[1]
+            if second[1]['score'] >= primary[1]['score'] * 0.6:
+                secondary.append(second[0])
         
         return {
-            'primary_agent': primary_agent,
+            'primary_agent': primary[0],
             'confidence': confidence,
-            'secondary_agents': [],
-            'reasoning': f'Keyword-based fallback classification',
-            'is_multi_agent': False
+            'secondary_agents': secondary,
+            'reasoning': f"Matched keywords: {', '.join(primary[1]['matched'])}",
+            'is_multi_agent': len(secondary) > 0,
+            'classification_method': 'keyword'
         }
+    
+    async def _llm_classification(
+        self, 
+        user_message: str,
+        conversation_history: Optional[List[Dict[str, str]]] = None
+    ) -> Dict[str, Any]:
+        """
+        LLM-based classification — only called for ambiguous messages.
+        """
+        context = ""
+        if conversation_history:
+            context = "\n".join([
+                f"{msg['role']}: {msg['content']}" 
+                for msg in conversation_history[-3:]  # Reduced from 5 to 3 to save tokens
+            ])
+        
+        prompt = f"""Classify this message to one of these agents:
+- study_agent: Learning, exams, study schedules, notes
+- productivity_agent: Tasks, scheduling, goals, time management
+- wellness_agent: Exercise, meditation, sleep, mood, health
+- meal_planner_agent: Meals, recipes, nutrition, cooking
+
+Message: "{user_message}"
+{f"Recent context: {context}" if context else ""}
+
+Respond ONLY with JSON:
+{{"primary_agent": "agent_name", "confidence": 0.95, "reasoning": "brief reason"}}"""
+        
+        chat_completion = self.client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": "You are an intent classifier. Respond with valid JSON only."},
+                {"role": "user", "content": prompt}
+            ],
+            model=self.model,
+            temperature=0.1,
+            max_tokens=200,  # Reduced from 500
+        )
+        
+        response_text = chat_completion.choices[0].message.content.strip()
+        
+        # Clean markdown code blocks
+        if response_text.startswith('```'):
+            response_text = response_text.split('```')[1]
+            if response_text.startswith('json'):
+                response_text = response_text[4:]
+        
+        result = json.loads(response_text.strip())
+        
+        if 'primary_agent' not in result:
+            raise ValueError("Missing primary_agent in LLM response")
+        
+        if result['primary_agent'] not in self.AGENT_INTENTS:
+            raise ValueError(f"Unknown agent: {result['primary_agent']}")
+        
+        result['classification_method'] = 'llm'
+        result.setdefault('secondary_agents', [])
+        result.setdefault('is_multi_agent', False)
+        
+        return result
 
 
 # Singleton instance
