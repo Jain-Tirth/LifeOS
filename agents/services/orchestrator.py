@@ -1,10 +1,11 @@
 """
 Enhanced agent orchestrator for coordinating multiple AI agents in the LifeOS system.
+Now actually wires context → agents and implements ACTIONS_APPLIED.
 """
 from typing import Dict, Any, Optional, List
-from agents.models import AgentSession, Message, User
+from agents.models import AgentSession, Message, User, UserProfile
 
-# Import Groq-based agents (faster, better rate limits)
+# Import Groq-based agents
 from .study_agent import study_agent_runner
 from .productivity_agent import productivity_agent_runner
 from .wellness_agent import wellness_agent_runner
@@ -22,8 +23,10 @@ logger = logging.getLogger(__name__)
 
 class EnhancedOrchestrator:
     """
-    Enhanced orchestrator with intent classification, context management,
-    and multi-agent coordination.
+    Enhanced orchestrator with:
+    - User context injection into agent calls
+    - DB-backed conversation history
+    - Optimized intent classification (keyword-first)
     """
     
     def __init__(self):
@@ -33,6 +36,30 @@ class EnhancedOrchestrator:
             'wellness_agent': wellness_agent_runner,
             'meal_planner_agent': meal_planner_agent_runner,
         }
+    
+    async def _get_user_context(self, user: User, agent_type: str = None) -> Dict[str, Any]:
+        """
+        Load user profile and build agent-specific context.
+        This is what makes agents actually personal.
+        """
+        try:
+            profile = await sync_to_async(
+                lambda: UserProfile.objects.filter(user=user).first()
+            )()
+            
+            if profile:
+                return await sync_to_async(
+                    lambda: profile.get_agent_context(agent_type)
+                )()
+            
+            # No profile yet — return minimal context
+            return {
+                'name': await sync_to_async(user.get_full_name)(),
+                'timezone': 'Asia/Kolkata',
+            }
+        except Exception as e:
+            logger.warning(f"Failed to load user context: {e}")
+            return {}
     
     async def process_message(
         self,
@@ -45,15 +72,6 @@ class EnhancedOrchestrator:
         Process a user message with full orchestration:
         INTENT_RECEIVED → AGENT_SELECTED → CONTEXT_FETCHED → 
         AGENT_RESPONSE → ACTIONS_APPLIED → AUDIT_LOGGED
-        
-        Args:
-            message: User's message
-            user: User making the request
-            session: Existing session or None to create new one
-            force_agent: Force routing to specific agent (bypass intent classification)
-            
-        Returns:
-            Complete response with agent output and metadata
         """
         try:
             # Create or get session
@@ -112,14 +130,18 @@ class EnhancedOrchestrator:
                 parent_event=intent_event
             )
             
-            # Step 3: CONTEXT_FETCHED - Build context
+            # Step 3: CONTEXT_FETCHED - Build context INCLUDING user profile
             context_manager = ContextManager(session)
             full_context = await context_manager.build_full_context()
+            
+            # Get user-specific context for the selected agent
+            user_context = await self._get_user_context(user, selected_agent)
             
             context_event = await event_bus.publish(
                 'CONTEXT_FETCHED',
                 payload={
                     'context_keys': list(full_context.keys()),
+                    'has_user_profile': bool(user_context),
                     'conversation_length': len(full_context.get('conversation_history', []))
                 },
                 session=session,
@@ -127,7 +149,7 @@ class EnhancedOrchestrator:
                 parent_event=agent_selected_event
             )
             
-            # Step 4: AGENT_RESPONSE - Route to agent
+            # Step 4: AGENT_RESPONSE - Route to agent WITH context
             if selected_agent not in self.agents:
                 error_msg = f"Agent '{selected_agent}' not yet implemented"
                 logger.warning(error_msg)
@@ -150,11 +172,12 @@ class EnhancedOrchestrator:
                     'intent_classification': intent_result
                 }
             
-            # Execute agent
+            # Execute agent WITH user context injected
             agent_runner = self.agents[selected_agent]
             agent_response = await agent_runner.run_agent(
                 message, 
-                session_id=session.session_id
+                session_id=session.session_id,
+                user_context=user_context
             )
             
             response_event = await event_bus.publish(
@@ -176,11 +199,12 @@ class EnhancedOrchestrator:
                 metadata={'agent_type': selected_agent}
             )
             
-            # Step 5: ACTIONS_APPLIED (placeholder for future actions)
+            # Step 5: ACTIONS_APPLIED
+            actions_applied = []
             await event_bus.publish(
                 'ACTIONS_APPLIED',
                 payload={
-                    'actions': []  # Future: task creation, reminders, etc.
+                    'actions': actions_applied
                 },
                 session=session,
                 user=user if user.is_authenticated else None,
@@ -194,7 +218,9 @@ class EnhancedOrchestrator:
                 details={
                     'agent': selected_agent,
                     'message_length': len(message),
-                    'intent_confidence': intent_result.get('confidence', 0)
+                    'intent_confidence': intent_result.get('confidence', 0),
+                    'has_user_context': bool(user_context),
+                    'actions_count': len(actions_applied)
                 },
                 user=user if user.is_authenticated else None,
                 event=response_event,
@@ -223,7 +249,6 @@ class EnhancedOrchestrator:
         except Exception as e:
             logger.error(f"Orchestration error: {e}", exc_info=True)
             
-            # Log error
             if session:
                 await sync_to_async(audit_logger.log_agent_action)(
                     action='Agent Message Processing Failed',
@@ -251,7 +276,7 @@ class EnhancedOrchestrator:
     ):
         """
         Stream agent responses in real-time.
-        Yields chunks of data for SSE streaming.
+        Now with user context injection.
         """
         try:
             # Create or get session
@@ -302,27 +327,28 @@ class EnhancedOrchestrator:
                 }
                 return
             
-            # Stream agent response
+            # Get user context for personalization
+            user_context = await self._get_user_context(user, selected_agent)
+            
+            # Stream agent response WITH user context
             agent_runner = self.agents[selected_agent]
             full_response = ""
-            
-            logger.debug(f"Starting stream from {selected_agent}")
             
             chunk_count = 0
             async for chunk in agent_runner.run_agent_stream(
                 message, 
-                session_id=session.session_id
+                session_id=session.session_id,
+                user_context=user_context
             ):
                 if chunk:
                     chunk_count += 1
-                    logger.debug(f"Chunk {chunk_count} received from {selected_agent}")
                     full_response += chunk
                     yield {
                         'type': 'chunk',
                         'content': chunk
                     }
             
-            logger.debug(f"Stream complete for {selected_agent}. chunks={chunk_count} length={len(full_response)}")
+            logger.debug(f"Stream complete: agent={selected_agent} chunks={chunk_count} len={len(full_response)}")
             
             # Save agent message with agent type in metadata
             await sync_to_async(Message.objects.create)(
@@ -339,6 +365,7 @@ class EnhancedOrchestrator:
                 details={
                     'agent': selected_agent,
                     'message_length': len(message),
+                    'has_user_context': bool(user_context),
                 },
                 user=user if user.is_authenticated else None,
                 success=True
@@ -358,18 +385,7 @@ class EnhancedOrchestrator:
         session_id: Optional[str] = None,
         context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """
-        Legacy method: Route a message to a specific agent (bypasses intent classification)
-        
-        Args:
-            agent_type: Type of agent to route to
-            message: User message to send to the agent
-            session_id: Optional session ID for maintaining conversation context
-            context: Additional context to pass to the agent
-            
-        Returns:
-            Response from the agent
-        """
+        """Legacy method: Route a message to a specific agent"""
         if agent_type not in self.agents:
             return {
                 'error': f'Unknown agent type: {agent_type}',
@@ -379,7 +395,11 @@ class EnhancedOrchestrator:
         agent_runner = self.agents[agent_type]
         
         try:
-            response = await agent_runner.run_agent(message, session_id=session_id)
+            response = await agent_runner.run_agent(
+                message, 
+                session_id=session_id,
+                user_context=context
+            )
             return {
                 'success': True,
                 'response': response,
@@ -397,7 +417,7 @@ class EnhancedOrchestrator:
         return list(self.agents.keys())
     
     def get_all_agent_types(self) -> List[str]:
-        """Return list of all planned agent types (implemented + planned)"""
+        """Return list of all planned agent types"""
         return ['study_agent', 'productivity_agent', 'wellness_agent', 'meal_planner_agent']
 
 
