@@ -32,6 +32,9 @@ db.sqlite3-journal
 .DS_Store
 Thumbs.db
 
+# for my own purposes
+*missing.txt
+
 # Migrations (optional - uncomment if needed)
 # */migrations/*.py
 # !*/migrations/__init__.py
