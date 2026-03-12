@@ -19,6 +19,7 @@ urlpatterns = [
     path('auth/login/', auth_views.login, name='login'),
     path('auth/profile/', auth_views.get_user_profile, name='user-profile'),
     path('auth/profile/update/', auth_views.update_user_profile, name='update-profile'),
+    path('auth/preferences/', auth_views.update_user_preferences, name='update-preferences'),
     
     # Orchestrator endpoints
     path('chat/', orchestrator_views.chat, name='chat'),

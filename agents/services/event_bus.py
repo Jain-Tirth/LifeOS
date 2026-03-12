@@ -1,7 +1,9 @@
 """
-Event bus for handling system-wide events and message passing
+Event bus for handling system-wide events and audit logging.
+Slimmed down: removed unused subscriber/middleware infrastructure.
+Only writes meaningful events to DB (not every pipeline step).
 """
-from typing import Dict, Any, Optional, Callable, List
+from typing import Dict, Any, Optional, List
 from datetime import datetime
 from agents.models import Event, AuditLog, AgentSession, User
 from asgiref.sync import sync_to_async
@@ -12,31 +14,15 @@ logger = logging.getLogger(__name__)
 
 class EventBus:
     """
-    Message bus pattern implementation for agent coordination
-    Manages event flow: INTENT_RECEIVED → AGENT_SELECTED → CONTEXT_FETCHED → 
-                        AGENT_RESPONSE → ACTIONS_APPLIED → AUDIT_LOGGED
+    Lightweight event bus — writes only significant events to DB.
+    
+    Previous version wrote 6 Event rows per message (INTENT_RECEIVED, AGENT_SELECTED,
+    CONTEXT_FETCHED, AGENT_RESPONSE, ACTIONS_APPLIED, AUDIT_LOGGED). That's 6 DB writes
+    just for overhead. Now we only persist events that carry real diagnostic value.
     """
     
-    def __init__(self):
-        self._handlers: Dict[str, List[Callable]] = {}
-        self._middleware: List[Callable] = []
-    
-    def subscribe(self, event_type: str, handler: Callable):
-        """Subscribe a handler to an event type"""
-        if event_type not in self._handlers:
-            self._handlers[event_type] = []
-        self._handlers[event_type].append(handler)
-        logger.info(f"Handler subscribed to {event_type}")
-    
-    def unsubscribe(self, event_type: str, handler: Callable):
-        """Unsubscribe a handler from an event type"""
-        if event_type in self._handlers and handler in self._handlers[event_type]:
-            self._handlers[event_type].remove(handler)
-            logger.info(f"Handler unsubscribed from {event_type}")
-    
-    def add_middleware(self, middleware: Callable):
-        """Add middleware to process events before handlers"""
-        self._middleware.append(middleware)
+    # Events worth persisting (the rest are just logged)
+    PERSIST_EVENTS = {'AGENT_RESPONSE', 'ACTIONS_APPLIED', 'ERROR_OCCURRED'}
     
     async def publish(
         self, 
@@ -46,72 +32,31 @@ class EventBus:
         user: Optional[User] = None,
         parent_event: Optional[Event] = None,
         metadata: Optional[Dict[str, Any]] = None
-    ) -> Event:
+    ) -> Optional[Event]:
         """
-        Publish an event to the bus
-        
-        Args:
-            event_type: Type of event (e.g., 'INTENT_RECEIVED')
-            payload: Event data
-            session: Agent session if applicable
-            user: User who triggered the event
-            parent_event: Parent event for chaining
-            metadata: Additional metadata
-            
-        Returns:
-            Created Event instance
+        Publish an event. Only persists significant events to DB.
+        All events are logged regardless.
         """
-        # Create event record
-        event = await sync_to_async(Event.objects.create)(
-            event_type=event_type,
-            session=session,
-            user=user,
-            payload=payload,
-            metadata=metadata or {},
-            parent_event=parent_event
-        )
+        logger.info(f"Event: {event_type} | session={session.session_id if session else 'none'}")
         
-        logger.info(f"Event published: {event_type} (ID: {event.id})")
-        
-        # Apply middleware
-        for middleware in self._middleware:
+        # Only write to DB for significant events
+        if event_type in self.PERSIST_EVENTS:
             try:
-                await middleware(event)
-            except Exception as e:
-                logger.error(f"Middleware error for {event_type}: {e}")
-        
-        # Notify handlers
-        handlers = self._handlers.get(event_type, [])
-        for handler in handlers:
-            try:
-                await handler(event)
-            except Exception as e:
-                logger.error(f"Handler error for {event_type}: {e}")
-                # Publish error event
-                await self.publish(
-                    'ERROR_OCCURRED',
-                    payload={
-                        'original_event': event_type,
-                        'error': str(e),
-                        'handler': handler.__name__
-                    },
+                event = await sync_to_async(Event.objects.create)(
+                    event_type=event_type,
                     session=session,
                     user=user,
-                    parent_event=event
+                    payload=payload,
+                    metadata=metadata or {},
+                    parent_event=parent_event
                 )
+                return event
+            except Exception as e:
+                logger.error(f"Failed to persist event {event_type}: {e}")
+                return None
         
-        return event
-    
-    def get_event_chain(self, event: Event) -> List[Event]:
-        """Get the complete chain of events from root to this event"""
-        chain = [event]
-        current = event
-        
-        while current.parent_event:
-            current = current.parent_event
-            chain.insert(0, current)
-        
-        return chain
+        # Non-persisted events just get logged
+        return None
 
 
 # Singleton instance
@@ -120,7 +65,8 @@ event_bus = EventBus()
 
 class AuditLogger:
     """
-    Centralized audit logging service
+    Centralized audit logging service.
+    Unchanged — audit logs are always valuable.
     """
     
     @staticmethod
@@ -137,25 +83,7 @@ class AuditLogger:
         success: bool = True,
         error_message: Optional[str] = None
     ) -> AuditLog:
-        """
-        Create an audit log entry
-        
-        Args:
-            action_type: Type of action (USER_ACTION, AGENT_ACTION, etc.)
-            action: Description of the action
-            details: Detailed information about the action
-            user: User who performed the action
-            session: Agent session if applicable
-            event: Related event
-            resource: Resource affected (e.g., "Task:123")
-            ip_address: IP address of the requester
-            user_agent: User agent string
-            success: Whether the action succeeded
-            error_message: Error message if action failed
-            
-        Returns:
-            Created AuditLog instance
-        """
+        """Create an audit log entry."""
         audit_log = AuditLog.objects.create(
             action_type=action_type,
             user=user,
@@ -170,7 +98,7 @@ class AuditLogger:
             error_message=error_message
         )
         
-        logger.info(f"Audit log created: {action_type} - {action}")
+        logger.info(f"Audit: {action_type} - {action}")
         return audit_log
     
     @staticmethod

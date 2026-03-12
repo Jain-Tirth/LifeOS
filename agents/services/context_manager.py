@@ -200,6 +200,3 @@ class ContextManager:
         if deleted_count > 0:
             logger.info(f"Cleaned up {deleted_count} expired contexts for session {self.session.session_id}")
 
-
-# Import models here to avoid circular import
-from django.db import models

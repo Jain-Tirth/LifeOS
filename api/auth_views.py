@@ -6,12 +6,13 @@ from django.contrib.auth import authenticate
 from django.middleware.csrf import get_token
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework_simplejwt.tokens import AccessToken
-from agents.models import User
+from agents.models import User, UserProfile
 from agents.services.event_bus import audit_logger
 from .auth_serializers import (
     UserRegistrationSerializer, 
     UserLoginSerializer, 
-    UserSerializer
+    UserSerializer,
+    UserProfileSerializer
 )
 
 
@@ -29,37 +30,24 @@ def get_client_ip(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def get_csrf_token(request):
-    """
-    Get CSRF token for subsequent requests.
-    This sets the CSRF cookie and returns the token.
-    """
+    """Get CSRF token for subsequent requests."""
     return Response({'csrfToken': get_token(request)})
 
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def register(request):
-    """
-    Register a new user with email and password.
-    
-    Request body:
-    {
-        "email": "user@example.com",
-        "password": "strongpassword123",
-        "password_confirm": "strongpassword123",
-        "first_name": "John",  (optional)
-        "last_name": "Doe"     (optional)
-    }
-    """
+    """Register a new user. UserProfile is auto-created via signal."""
     serializer = UserRegistrationSerializer(data=request.data)
     
     if serializer.is_valid():
         user = serializer.save()
         
-        # Generate JWT token
+        # Ensure profile exists (signal should create it, but be safe)
+        UserProfile.objects.get_or_create(user=user)
+        
         token = AccessToken.for_user(user)
         
-        # Audit log
         audit_logger.log_authentication(
             action='User Registration',
             user=user,
@@ -79,7 +67,6 @@ def register(request):
             'token': str(token)
         }, status=status.HTTP_201_CREATED)
     
-    # Audit failed registration
     audit_logger.log_authentication(
         action='Failed User Registration',
         user=None,
@@ -99,15 +86,7 @@ def register(request):
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login(request):
-    """
-    Login with email and password.
-    
-    Request body:
-    {
-        "email": "user@example.com",
-        "password": "yourpassword"
-    }
-    """
+    """Login with email and password."""
     serializer = UserLoginSerializer(data=request.data)
     
     if not serializer.is_valid():
@@ -116,11 +95,9 @@ def login(request):
     email = serializer.validated_data['email']
     password = serializer.validated_data['password']
     
-    # Authenticate user
     try:
         user = User.objects.get(email=email)
         if not user.check_password(password):
-            # Audit failed login
             audit_logger.log_authentication(
                 action='Failed Login - Invalid Password',
                 user=user,
@@ -135,7 +112,6 @@ def login(request):
             }, status=status.HTTP_401_UNAUTHORIZED)
         
         if not user.is_active:
-            # Audit failed login - inactive account
             audit_logger.log_authentication(
                 action='Failed Login - Inactive Account',
                 user=user,
@@ -149,10 +125,11 @@ def login(request):
                 'error': 'Account is disabled'
             }, status=status.HTTP_401_UNAUTHORIZED)
         
-        # Generate JWT token
+        # Ensure profile exists for existing users
+        UserProfile.objects.get_or_create(user=user)
+        
         token = AccessToken.for_user(user)
         
-        # Audit successful login
         audit_logger.log_authentication(
             action='User Login',
             user=user,
@@ -169,7 +146,6 @@ def login(request):
         }, status=status.HTTP_200_OK)
         
     except User.DoesNotExist:
-        # Audit failed login - user not found
         audit_logger.log_authentication(
             action='Failed Login - User Not Found',
             user=None,
@@ -187,10 +163,8 @@ def login(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_user_profile(request):
-    """
-    Get current user profile.
-    Requires Authentication header: Bearer <token>
-    """
+    """Get current user profile including preferences."""
+    UserProfile.objects.get_or_create(user=request.user)
     serializer = UserSerializer(request.user)
     return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -198,16 +172,7 @@ def get_user_profile(request):
 @api_view(['PUT', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def update_user_profile(request):
-    """
-    Update current user profile.
-    Requires Authentication header: Bearer <token>
-    
-    Request body:
-    {
-        "first_name": "John",
-        "last_name": "Doe"
-    }
-    """
+    """Update current user's basic info (first_name, last_name)."""
     serializer = UserSerializer(request.user, data=request.data, partial=True)
     
     if serializer.is_valid():
@@ -215,6 +180,36 @@ def update_user_profile(request):
         return Response({
             'message': 'Profile updated successfully',
             'user': serializer.data
+        }, status=status.HTTP_200_OK)
+    
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['PUT', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def update_user_preferences(request):
+    """
+    Update user preferences that agents use for personalization.
+    
+    Example request body:
+    {
+        "timezone": "Asia/Kolkata",
+        "dietary_preferences": {"type": "vegetarian", "allergies": ["nuts"]},
+        "work_hours": {"start": "09:00", "end": "18:00"},
+        "fitness_level": "intermediate",
+        "goals": [{"goal": "Lose 5kg", "deadline": "2026-06-01", "category": "wellness"}],
+        "about_me": "I'm a software developer who works from home"
+    }
+    """
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    
+    serializer = UserProfileSerializer(profile, data=request.data, partial=True)
+    
+    if serializer.is_valid():
+        serializer.save()
+        return Response({
+            'message': 'Preferences updated successfully',
+            'preferences': serializer.data
         }, status=status.HTTP_200_OK)
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

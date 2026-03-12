@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from agents.models import User
+from agents.models import User, UserProfile
 from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.tokens import AccessToken
 
@@ -55,11 +55,25 @@ class UserLoginSerializer(serializers.Serializer):
     )
 
 
+class UserProfileSerializer(serializers.ModelSerializer):
+    """Serializer for user preferences — the brain of personalization"""
+    
+    class Meta:
+        model = UserProfile
+        fields = (
+            'timezone', 'dietary_preferences', 'work_hours',
+            'fitness_level', 'health_conditions', 'learning_style',
+            'goals', 'about_me', 'updated_at'
+        )
+        read_only_fields = ('updated_at',)
+
+
 class UserSerializer(serializers.ModelSerializer):
-    """Serializer for user details"""
+    """Serializer for user details with nested profile"""
     full_name = serializers.CharField(source='get_full_name', read_only=True)
+    profile = UserProfileSerializer(read_only=True)
     
     class Meta:
         model = User
-        fields = ('id', 'email', 'first_name', 'last_name', 'full_name', 'date_joined')
+        fields = ('id', 'email', 'first_name', 'last_name', 'full_name', 'date_joined', 'profile')
         read_only_fields = ('id', 'date_joined')
