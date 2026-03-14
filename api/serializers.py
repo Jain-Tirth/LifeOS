@@ -5,7 +5,9 @@ from agents.models import (
     MealPlan, 
     Task, 
     StudySession, 
-    WellnessActivity
+    WellnessActivity,
+    Habit,
+    HabitLog
 )
 
 
@@ -152,3 +154,31 @@ class WellnessActivitySerializer(serializers.ModelSerializer):
                 })
         
         return super().create(validated_data)
+
+
+class HabitLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = HabitLog
+        fields = ['id', 'habit', 'date', 'completed', 'count', 'notes', 'completed_at', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class HabitSerializer(serializers.ModelSerializer):
+    """Habit serializer with computed 'completed_today' field."""
+    completed_today = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Habit
+        fields = [
+            'id', 'name', 'description', 'category', 'frequency',
+            'custom_days', 'reminder_time', 'target_count',
+            'current_streak', 'best_streak', 'total_completions',
+            'color', 'icon', 'is_active',
+            'created_at', 'updated_at',
+            'completed_today'
+        ]
+        read_only_fields = ['id', 'current_streak', 'best_streak', 'total_completions', 'created_at', 'updated_at']
+    
+    def get_completed_today(self, obj):
+        from datetime import date
+        return obj.logs.filter(date=date.today(), completed=True).exists()

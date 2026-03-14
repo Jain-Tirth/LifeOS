@@ -8,7 +8,9 @@ from agents.models import (
     MealPlan, 
     Task, 
     StudySession, 
-    WellnessActivity
+    WellnessActivity,
+    Habit,
+    HabitLog
 )
 from .serializers import (
     AgentSessionSerializer,
@@ -16,7 +18,9 @@ from .serializers import (
     MealPlanSerializer,
     TaskSerializer,
     StudySessionSerializer,
-    WellnessActivitySerializer
+    WellnessActivitySerializer,
+    HabitSerializer,
+    HabitLogSerializer
 )
 from agents.services.orchestrator import orchestrator
 from asgiref.sync import async_to_sync
@@ -322,6 +326,88 @@ class WellnessActivityViewSet(viewsets.ModelViewSet):
             'message': 'Wellness activity saved successfully',
             'data': serializer.data
         }, status=status.HTTP_201_CREATED, headers=headers)
+
+
+class HabitViewSet(viewsets.ModelViewSet):
+    """CRUD for habits + toggle completion + daily digest."""
+    queryset = Habit.objects.all()
+    serializer_class = HabitSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        qs = Habit.objects.filter(user=self.request.user, is_active=True)
+        category = self.request.query_params.get('category')
+        if category:
+            qs = qs.filter(category=category)
+        return qs
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+    
+    @action(detail=True, methods=['post'])
+    def toggle_today(self, request, pk=None):
+        """Toggle habit completion for today. One-click endpoint."""
+        from datetime import date, datetime
+        
+        habit = self.get_object()
+        today = date.today()
+        
+        log, created = HabitLog.objects.get_or_create(
+            habit=habit,
+            date=today,
+            defaults={'completed': True, 'completed_at': datetime.now(), 'count': 1}
+        )
+        
+        if not created:
+            log.completed = not log.completed
+            log.completed_at = datetime.now() if log.completed else None
+            log.count = 1 if log.completed else 0
+            log.save()
+        
+        # Update streak and total completions
+        habit.calculate_streak()
+        habit.total_completions = habit.logs.filter(completed=True).count()
+        habit.save(update_fields=['total_completions'])
+        
+        return Response({
+            'completed': log.completed,
+            'current_streak': habit.current_streak,
+            'best_streak': habit.best_streak,
+            'total_completions': habit.total_completions,
+        })
+    
+    @action(detail=False, methods=['get'])
+    def daily_digest(self, request):
+        """Get today's habit summary: which habits are due, which are done."""
+        from datetime import date
+        
+        today = date.today()
+        habits = self.get_queryset()
+        
+        digest = []
+        for habit in habits:
+            log = habit.logs.filter(date=today).first()
+            digest.append({
+                'id': habit.id,
+                'name': habit.name,
+                'icon': habit.icon,
+                'color': habit.color,
+                'category': habit.category,
+                'completed': log.completed if log else False,
+                'current_streak': habit.current_streak,
+                'target_count': habit.target_count,
+                'actual_count': log.count if log else 0,
+            })
+        
+        completed_count = sum(1 for h in digest if h['completed'])
+        return Response({
+            'date': str(today),
+            'total': len(digest),
+            'completed': completed_count,
+            'pending': len(digest) - completed_count,
+            'completion_rate': round(completed_count / max(len(digest), 1) * 100),
+            'habits': digest,
+        })
 
 
 @api_view(['POST'])

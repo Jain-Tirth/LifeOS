@@ -11,6 +11,7 @@ router.register(r'meal-plans', views.MealPlanViewSet, basename='meal-plan')
 router.register(r'tasks', views.TaskViewSet, basename='task')
 router.register(r'study-sessions', views.StudySessionViewSet, basename='study-session')
 router.register(r'wellness-activities', views.WellnessActivityViewSet, basename='wellness-activity')
+router.register(r'habits', views.HabitViewSet, basename='habit')
 
 urlpatterns = [
     # Authentication endpoints

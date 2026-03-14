@@ -10,6 +10,7 @@ from .study_agent import study_agent_runner
 from .productivity_agent import productivity_agent_runner
 from .wellness_agent import wellness_agent_runner
 from .meal_planner_agent import meal_planner_agent_runner
+from .habit_coach_agent import habit_coach_runner
 
 from .event_bus import event_bus, audit_logger
 from .intent_classifier import intent_classifier
@@ -35,6 +36,7 @@ class EnhancedOrchestrator:
             'productivity_agent': productivity_agent_runner,
             'wellness_agent': wellness_agent_runner,
             'meal_planner_agent': meal_planner_agent_runner,
+            'habit_coach_agent': habit_coach_runner,
         }
     
     async def _get_user_context(self, user: User, agent_type: str = None) -> Dict[str, Any]:
@@ -418,7 +420,7 @@ class EnhancedOrchestrator:
     
     def get_all_agent_types(self) -> List[str]:
         """Return list of all planned agent types"""
-        return ['study_agent', 'productivity_agent', 'wellness_agent', 'meal_planner_agent']
+        return ['study_agent', 'productivity_agent', 'wellness_agent', 'meal_planner_agent', 'habit_coach_agent']
 
 
 # Singleton instance

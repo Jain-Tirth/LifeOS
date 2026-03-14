@@ -51,6 +51,13 @@ class IntentClassifier:
             'snack', 'ingredient', 'grocery', 'vegan', 'vegetarian',
             'keto', 'gluten-free', 'protein', 'carb', 'calorie',
             'what should i eat', 'what to cook', 'hungry', 'cook',
+        ],
+        'habit_coach_agent': [
+            'habit', 'streak', 'daily routine', 'build a habit', 'break a habit',
+            'track habit', 'habit tracker', 'consistency', 'accountability',
+            'morning routine', 'evening routine', 'bedtime routine',
+            'new habit', 'stop habit', 'habit stack', 'atomic habits',
+            'how many days', 'did i do', 'check in', 'log habit',
         ]
     }
     

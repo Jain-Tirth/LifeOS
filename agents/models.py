@@ -165,6 +165,8 @@ class AgentSession(models.Model):
         ('productivity', 'Productivity Agent'),
         ('study_buddy', 'Study Buddy'),
         ('wellness', 'Wellness Agent'),
+        ('habit_coach', 'Habit Coach'),
+        ('orchestrator', 'Orchestrator'),
     ])
     session_id = models.CharField(max_length=255, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -386,3 +388,111 @@ class AgentContext(models.Model):
     
     def __str__(self):
         return f"{self.context_type} - {self.key}"
+
+
+class Habit(models.Model):
+    """
+    Recurring habits tracked by the Habit Coach agent.
+    This is the stickiness feature — streaks drive daily engagement.
+    """
+    FREQUENCY_CHOICES = [
+        ('daily', 'Daily'),
+        ('weekdays', 'Weekdays'),
+        ('weekends', 'Weekends'),
+        ('weekly', 'Weekly'),
+        ('custom', 'Custom'),
+    ]
+    
+    CATEGORY_CHOICES = [
+        ('health', 'Health & Fitness'),
+        ('productivity', 'Productivity'),
+        ('mindfulness', 'Mindfulness'),
+        ('learning', 'Learning'),
+        ('social', 'Social'),
+        ('self_care', 'Self Care'),
+        ('finance', 'Finance'),
+        ('other', 'Other'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='habits')
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True, default='')
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='other')
+    frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES, default='daily')
+    # For 'custom' frequency: which days (0=Mon, 6=Sun)
+    custom_days = models.JSONField(default=list, blank=True, help_text="e.g. [0,2,4] for Mon/Wed/Fri")
+    
+    # Time-based
+    reminder_time = models.TimeField(null=True, blank=True, help_text="When to remind the user")
+    target_count = models.IntegerField(default=1, help_text="How many times per day (e.g., 8 glasses of water)")
+    
+    # Streak tracking
+    current_streak = models.IntegerField(default=0)
+    best_streak = models.IntegerField(default=0)
+    total_completions = models.IntegerField(default=0)
+    
+    # UI
+    color = models.CharField(max_length=7, default='#8B5CF6', help_text="Hex color for UI display")
+    icon = models.CharField(max_length=10, default='✅', help_text="Emoji icon")
+    
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-current_streak', 'name']
+        indexes = [
+            models.Index(fields=['user', 'is_active']),
+        ]
+    
+    def __str__(self):
+        return f"{self.icon} {self.name} (streak: {self.current_streak})"
+    
+    def calculate_streak(self):
+        """Recalculate current streak from HabitLog entries."""
+        from datetime import date, timedelta
+        
+        today = date.today()
+        streak = 0
+        check_date = today
+        
+        while True:
+            log = self.logs.filter(date=check_date, completed=True).exists()
+            if log:
+                streak += 1
+                check_date -= timedelta(days=1)
+            else:
+                # Allow today to be incomplete (streak isn't broken until tomorrow)
+                if check_date == today:
+                    check_date -= timedelta(days=1)
+                    continue
+                break
+        
+        self.current_streak = streak
+        if streak > self.best_streak:
+            self.best_streak = streak
+        self.save(update_fields=['current_streak', 'best_streak'])
+        return streak
+
+
+class HabitLog(models.Model):
+    """Daily completion log for a habit. One entry per habit per day."""
+    habit = models.ForeignKey(Habit, on_delete=models.CASCADE, related_name='logs')
+    date = models.DateField()
+    completed = models.BooleanField(default=False)
+    count = models.IntegerField(default=0, help_text="For countable habits (e.g., glasses of water)")
+    notes = models.TextField(blank=True, default='')
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ['habit', 'date']
+        ordering = ['-date']
+        indexes = [
+            models.Index(fields=['habit', 'date']),
+        ]
+    
+    def __str__(self):
+        status = '✅' if self.completed else '⬜'
+        return f"{status} {self.habit.name} — {self.date}"
+
