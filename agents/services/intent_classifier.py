@@ -21,7 +21,9 @@ class IntentClassifier:
     """
     
     # Confidence threshold: if keyword score is above this, skip the LLM call
-    KEYWORD_CONFIDENCE_THRESHOLD = 0.5
+    KEYWORD_CONFIDENCE_THRESHOLD = 0.55
+    LOW_CONFIDENCE_THRESHOLD = 0.35
+    DEFAULT_FALLBACK_AGENT = 'productivity_agent'
     
     AGENT_INTENTS = {
         'study_agent': [
@@ -58,6 +60,16 @@ class IntentClassifier:
             'morning routine', 'evening routine', 'bedtime routine',
             'new habit', 'stop habit', 'habit stack', 'atomic habits',
             'how many days', 'did i do', 'check in', 'log habit',
+        ],
+        'planner_agent': [
+            'plan', 'roadmap', 'milestone', 'weekly breakdown', 'execution plan',
+            'quarter plan', 'timeline', 'long term goal', 'strategy', 'strategic plan',
+            'goal breakdown', 'constraints', 'energy planning',
+        ],
+        'knowledge_agent': [
+            'knowledge', 'notes', 'summarize notes', 'what do i know', 'recall notes',
+            'find in notes', 'link ideas', 'second brain', 'research notes',
+            'citation', 'reference', 'knowledge base',
         ]
     }
     
@@ -90,7 +102,7 @@ class IntentClassifier:
                 f"Intent classified via keywords: {keyword_result['primary_agent']} "
                 f"(confidence: {keyword_result['confidence']:.2f})"
             )
-            return keyword_result
+            return self._normalize_result(keyword_result)
         
         # Tier 2: LLM classification for ambiguous messages
         if self.client:
@@ -100,12 +112,36 @@ class IntentClassifier:
                     f"Intent classified via LLM: {llm_result['primary_agent']} "
                     f"(confidence: {llm_result.get('confidence', 0):.2f})"
                 )
-                return llm_result
+                return self._normalize_result(llm_result)
             except Exception as e:
                 logger.error(f"LLM classification failed, using keyword fallback: {e}")
         
         # Fallback: return keyword result even if low confidence
-        return keyword_result
+        return self._normalize_result(keyword_result)
+
+    def _normalize_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Ensure result shape is consistent and safe for orchestration fallbacks.
+        """
+        normalized = dict(result)
+        normalized.setdefault('secondary_agents', [])
+        normalized.setdefault('is_multi_agent', False)
+        normalized.setdefault('classification_method', 'keyword')
+        normalized.setdefault('reasoning', 'No reasoning provided')
+
+        confidence = float(normalized.get('confidence', 0) or 0)
+        normalized['confidence'] = max(0.0, min(confidence, 1.0))
+
+        if normalized.get('primary_agent') not in self.AGENT_INTENTS:
+            normalized['primary_agent'] = self.DEFAULT_FALLBACK_AGENT
+            normalized['reasoning'] = (
+                f"Invalid/unknown primary agent from classifier. "
+                f"Falling back to {self.DEFAULT_FALLBACK_AGENT}."
+            )
+
+        normalized['fallback_agent'] = self.DEFAULT_FALLBACK_AGENT
+        normalized['needs_clarification'] = normalized['confidence'] < self.LOW_CONFIDENCE_THRESHOLD
+        return normalized
     
     def _keyword_classification(self, user_message: str) -> Dict[str, Any]:
         """
@@ -132,7 +168,7 @@ class IntentClassifier:
         
         if not scores:
             return {
-                'primary_agent': 'productivity_agent',
+                'primary_agent': self.DEFAULT_FALLBACK_AGENT,
                 'confidence': 0.2,
                 'secondary_agents': [],
                 'reasoning': 'No keyword matches — defaulting to productivity',
@@ -184,12 +220,15 @@ class IntentClassifier:
 - productivity_agent: Tasks, scheduling, goals, time management
 - wellness_agent: Exercise, meditation, sleep, mood, health
 - meal_planner_agent: Meals, recipes, nutrition, cooking
+    - habit_coach_agent: Habit creation, streaks, routines, consistency
+- planner_agent: Strategic planning, goal breakdowns, timelines, constraints
+- knowledge_agent: Note synthesis, recall, linking ideas, citation-style retrieval
 
 Message: "{user_message}"
 {f"Recent context: {context}" if context else ""}
 
 Respond ONLY with JSON:
-{{"primary_agent": "agent_name", "confidence": 0.95, "reasoning": "brief reason"}}"""
+{{"primary_agent": "agent_name", "confidence": 0.95, "reasoning": "brief reason", "secondary_agents": ["optional_agent"], "is_multi_agent": false}}"""
         
         chat_completion = self.client.chat.completions.create(
             messages=[
@@ -213,14 +252,12 @@ Respond ONLY with JSON:
         
         if 'primary_agent' not in result:
             raise ValueError("Missing primary_agent in LLM response")
-        
+
         if result['primary_agent'] not in self.AGENT_INTENTS:
-            raise ValueError(f"Unknown agent: {result['primary_agent']}")
-        
+            logger.warning("LLM returned unknown agent '%s', using fallback", result['primary_agent'])
+            result['primary_agent'] = self.DEFAULT_FALLBACK_AGENT
+
         result['classification_method'] = 'llm'
-        result.setdefault('secondary_agents', [])
-        result.setdefault('is_multi_agent', False)
-        
         return result
 
 

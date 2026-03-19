@@ -31,7 +31,7 @@ db.sqlite3-journal
 # OS
 .DS_Store
 Thumbs.db
-
+*.md
 # for my own purposes
 *missing.txt
 
