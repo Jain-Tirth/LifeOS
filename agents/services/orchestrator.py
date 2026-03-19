@@ -11,17 +11,13 @@ from .productivity_agent import productivity_agent_runner
 from .wellness_agent import wellness_agent_runner
 from .meal_planner_agent import meal_planner_agent_runner
 from .habit_coach_agent import habit_coach_runner
-from .planner_agent import planner_agent_runner
-from .knowledge_agent import knowledge_agent_runner
 
 from .event_bus import event_bus, audit_logger
 from .intent_classifier import intent_classifier
 from .context_manager import ContextManager
-from .action_applier import action_applier
 from asgiref.sync import sync_to_async
 import logging
 import uuid
-import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -41,61 +37,7 @@ class EnhancedOrchestrator:
             'wellness_agent': wellness_agent_runner,
             'meal_planner_agent': meal_planner_agent_runner,
             'habit_coach_agent': habit_coach_runner,
-            'planner_agent': planner_agent_runner,
-            'knowledge_agent': knowledge_agent_runner,
         }
-
-    MAX_AGENT_RETRIES = 2
-    DEFAULT_AGENT = 'productivity_agent'
-
-    def _resolve_selected_agent(self, intent_result: Dict[str, Any]) -> str:
-        """
-        Resolve final agent with confidence and availability fallback behavior.
-        """
-        candidate = intent_result.get('primary_agent') or self.DEFAULT_AGENT
-        confidence = float(intent_result.get('confidence', 0) or 0)
-        fallback = intent_result.get('fallback_agent') or self.DEFAULT_AGENT
-
-        if candidate in self.agents and confidence >= 0.2:
-            return candidate
-
-        if fallback in self.agents:
-            return fallback
-
-        return self.DEFAULT_AGENT
-
-    async def _call_agent_with_retries(
-        self,
-        agent_runner,
-        message: str,
-        session_id: str,
-        user_context: Dict[str, Any],
-    ) -> str:
-        """Call an agent with basic retry handling for transient failures."""
-        last_error = None
-        for attempt in range(1, self.MAX_AGENT_RETRIES + 2):
-            try:
-                return await agent_runner.run_agent(
-                    message,
-                    session_id=session_id,
-                    user_context=user_context,
-                )
-            except Exception as exc:
-                last_error = exc
-                if attempt <= self.MAX_AGENT_RETRIES:
-                    backoff_seconds = 0.4 * attempt
-                    logger.warning(
-                        "Agent call failed (attempt %s/%s). Retrying in %.1fs. Error=%s",
-                        attempt,
-                        self.MAX_AGENT_RETRIES + 1,
-                        backoff_seconds,
-                        exc,
-                    )
-                    await asyncio.sleep(backoff_seconds)
-                else:
-                    logger.error("Agent call failed after retries: %s", exc)
-
-        raise last_error
     
     async def _get_user_context(self, user: User, agent_type: str = None) -> Dict[str, Any]:
         """
@@ -177,7 +119,7 @@ class EnhancedOrchestrator:
                     message, 
                     conversation_history
                 )
-                selected_agent = self._resolve_selected_agent(intent_result)
+                selected_agent = intent_result['primary_agent']
             
             agent_selected_event = await event_bus.publish(
                 'AGENT_SELECTED',
@@ -234,11 +176,10 @@ class EnhancedOrchestrator:
             
             # Execute agent WITH user context injected
             agent_runner = self.agents[selected_agent]
-            agent_response = await self._call_agent_with_retries(
-                agent_runner=agent_runner,
-                message=message,
+            agent_response = await agent_runner.run_agent(
+                message, 
                 session_id=session.session_id,
-                user_context=user_context,
+                user_context=user_context
             )
             
             response_event = await event_bus.publish(
@@ -261,11 +202,7 @@ class EnhancedOrchestrator:
             )
             
             # Step 5: ACTIONS_APPLIED
-            actions_applied = await action_applier.apply_actions(
-                response_text=str(agent_response),
-                session=session,
-                user=user if user.is_authenticated else None,
-            )
+            actions_applied = []
             await event_bus.publish(
                 'ACTIONS_APPLIED',
                 payload={
@@ -308,8 +245,7 @@ class EnhancedOrchestrator:
                 'agent': selected_agent,
                 'intent_classification': intent_result,
                 'session_id': session.session_id,
-                'context': full_context,
-                'actions_applied': actions_applied,
+                'context': full_context
             }
             
         except Exception as e:
@@ -368,7 +304,7 @@ class EnhancedOrchestrator:
                     message, 
                     conversation_history
                 )
-                selected_agent = self._resolve_selected_agent(intent_result)
+                selected_agent = intent_result['primary_agent']
             
             # Yield agent info
             yield {
@@ -484,15 +420,7 @@ class EnhancedOrchestrator:
     
     def get_all_agent_types(self) -> List[str]:
         """Return list of all planned agent types"""
-        return [
-            'study_agent',
-            'productivity_agent',
-            'wellness_agent',
-            'meal_planner_agent',
-            'habit_coach_agent',
-            'planner_agent',
-            'knowledge_agent',
-        ]
+        return ['study_agent', 'productivity_agent', 'wellness_agent', 'meal_planner_agent', 'habit_coach_agent']
 
 
 # Singleton instance
