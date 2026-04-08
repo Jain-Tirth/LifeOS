@@ -1,6 +1,9 @@
 """
 Enhanced agent orchestrator for coordinating multiple AI agents in the LifeOS system.
 Now actually wires context → agents and implements ACTIONS_APPLIED.
+
+Sprint 2: Integrated ActionApplier for structured action execution
+with durable contracts and idempotency.
 """
 from typing import Dict, Any, Optional, List
 from agents.models import AgentSession, Message, User, UserProfile
@@ -15,6 +18,7 @@ from .habit_coach_agent import habit_coach_runner
 from .event_bus import event_bus, audit_logger
 from .intent_classifier import intent_classifier
 from .context_manager import ContextManager
+from .action_applier import action_applier
 from asgiref.sync import sync_to_async
 import logging
 import uuid
@@ -201,8 +205,12 @@ class EnhancedOrchestrator:
                 metadata={'agent_type': selected_agent}
             )
             
-            # Step 5: ACTIONS_APPLIED
-            actions_applied = []
+            # Step 5: ACTIONS_APPLIED — validate, dedup, execute
+            actions_applied = await action_applier.apply_actions(
+                response_text=str(agent_response),
+                session=session,
+                user=user if user.is_authenticated else None,
+            )
             await event_bus.publish(
                 'ACTIONS_APPLIED',
                 payload={
@@ -245,7 +253,8 @@ class EnhancedOrchestrator:
                 'agent': selected_agent,
                 'intent_classification': intent_result,
                 'session_id': session.session_id,
-                'context': full_context
+                'context': full_context,
+                'actions_applied': actions_applied,
             }
             
         except Exception as e:
@@ -360,6 +369,18 @@ class EnhancedOrchestrator:
                 metadata={'agent_type': selected_agent}
             )
             
+            # Apply structured actions from the full response
+            actions_applied = await action_applier.apply_actions(
+                response_text=full_response,
+                session=session,
+                user=user if user.is_authenticated else None,
+            )
+            if actions_applied:
+                yield {
+                    'type': 'actions_applied',
+                    'actions': actions_applied,
+                }
+            
             # Log completion
             await sync_to_async(audit_logger.log_agent_action)(
                 action='Agent Message Streamed',
@@ -368,6 +389,7 @@ class EnhancedOrchestrator:
                     'agent': selected_agent,
                     'message_length': len(message),
                     'has_user_context': bool(user_context),
+                    'actions_count': len(actions_applied),
                 },
                 user=user if user.is_authenticated else None,
                 success=True

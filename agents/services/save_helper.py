@@ -1,6 +1,11 @@
 """
 Helper module for agents to save their responses to the database
 Provides a unified interface for saving different types of agent outputs
+
+Sprint 2: Idempotent saves — deterministic upserts prevent duplicate
+writes from retries or stream reconnects.  `update_or_create` is used
+with natural-key lookups so the same logical action is safe to call
+multiple times.
 """
 from agents.models import (
     AgentSession,
@@ -8,7 +13,8 @@ from agents.models import (
     Task,
     StudySession,
     WellnessActivity,
-    User
+    Habit,
+    User,
 )
 from typing import Dict, Any, Optional, List
 import logging
@@ -18,10 +24,10 @@ logger = logging.getLogger(__name__)
 
 class AgentSaveHelper:
     """
-    Helper class for agents to save their outputs to the database
-    Provides methods for each agent type and handles validation
+    Helper class for agents to save their outputs to the database.
+    Now with idempotent upserts to prevent duplicate writes.
     """
-    
+
     @staticmethod
     def get_session(session_id: str) -> Optional[AgentSession]:
         """Get AgentSession by session_id (UUID string)"""
@@ -30,7 +36,7 @@ class AgentSaveHelper:
         except AgentSession.DoesNotExist:
             logger.error(f"Session {session_id} not found")
             return None
-    
+
     @staticmethod
     def save_meal_plan(
         data: Dict[str, Any],
@@ -39,43 +45,44 @@ class AgentSaveHelper:
         user: Optional[User] = None
     ) -> Optional[MealPlan]:
         """
-        Save a meal plan from agent output
-        
-        Args:
-            data: Dictionary containing meal plan data
-            session: AgentSession object (optional)
-            session_id: Session UUID string (optional, if session not provided)
-            user: User object (optional)
-            
-        Returns:
-            MealPlan object if successful, None otherwise
+        Idempotent save — upserts on (user, meal_name, date).
         """
         try:
-            # Get session if session_id provided
             if not session and session_id:
                 session = AgentSaveHelper.get_session(session_id)
-            
-            # Prepare meal plan data
-            meal_plan_data = {
-                'date': data.get('date'),
+
+            meal_name = data.get('meal_name', data.get('name', 'Unnamed Meal'))
+            date = data.get('date')
+
+            defaults = {
                 'meal_type': data.get('meal_type', 'dinner'),
-                'meal_name': data.get('meal_name', data.get('name', 'Unnamed Meal')),
                 'ingredients': data.get('ingredients'),
                 'instructions': data.get('instructions', data.get('content')),
                 'nutritional_info': data.get('nutritional_info'),
                 'preferences': data.get('preferences'),
                 'session': session,
-                'user': user
             }
-            
-            meal_plan = MealPlan.objects.create(**meal_plan_data)
-            logger.info(f"Meal plan saved successfully: {meal_plan.id}")
+
+            if user and date:
+                meal_plan, created = MealPlan.objects.update_or_create(
+                    user=user, meal_name=meal_name, date=date,
+                    defaults=defaults,
+                )
+            else:
+                defaults['meal_name'] = meal_name
+                defaults['date'] = date
+                defaults['user'] = user
+                meal_plan = MealPlan.objects.create(**defaults)
+                created = True
+
+            action = 'created' if created else 'updated'
+            logger.info(f"Meal plan {action}: {meal_plan.id}")
             return meal_plan
-            
+
         except Exception as e:
             logger.error(f"Error saving meal plan: {str(e)}")
             return None
-    
+
     @staticmethod
     def save_task(
         data: Dict[str, Any],
@@ -84,41 +91,42 @@ class AgentSaveHelper:
         user: Optional[User] = None
     ) -> Optional[Task]:
         """
-        Save a task from agent output
-        
-        Args:
-            data: Dictionary containing task data
-            session: AgentSession object (optional)
-            session_id: Session UUID string (optional, if session not provided)
-            user: User object (optional)
-            
-        Returns:
-            Task object if successful, None otherwise
+        Idempotent save — upserts on (user, title).
+
+        If a task with the same title already exists for this user,
+        the existing record is updated instead of creating a duplicate.
         """
         try:
-            # Get session if session_id provided
             if not session and session_id:
                 session = AgentSaveHelper.get_session(session_id)
-            
-            # Prepare task data
-            task_data = {
-                'title': data.get('title', 'Unnamed Task'),
+
+            title = data.get('title', 'Unnamed Task')
+            defaults = {
                 'description': data.get('description', data.get('content')),
                 'priority': data.get('priority', 'medium'),
                 'status': data.get('status', 'todo'),
                 'due_date': data.get('due_date'),
                 'session': session,
-                'user': user
             }
-            
-            task = Task.objects.create(**task_data)
-            logger.info(f"Task saved successfully: {task.id}")
+
+            if user:
+                task, created = Task.objects.update_or_create(
+                    user=user, title=title, defaults=defaults,
+                )
+            else:
+                defaults['title'] = title
+                defaults['user'] = user
+                task = Task.objects.create(**defaults)
+                created = True
+
+            action = 'created' if created else 'updated'
+            logger.info(f"Task {action}: {task.id} — {title}")
             return task
-            
+
         except Exception as e:
             logger.error(f"Error saving task: {str(e)}")
             return None
-    
+
     @staticmethod
     def save_study_session(
         data: Dict[str, Any],
@@ -127,23 +135,14 @@ class AgentSaveHelper:
         user: Optional[User] = None
     ) -> Optional[StudySession]:
         """
-        Save a study session from agent output
-        
-        Args:
-            data: Dictionary containing study session data
-            session: AgentSession object (optional)
-            session_id: Session UUID string (optional, if session not provided)
-            user: User object (optional)
-            
-        Returns:
-            StudySession object if successful, None otherwise
+        Save a study session from agent output.
+        Study sessions are append-only (not idempotent) because
+        every session is inherently unique.
         """
         try:
-            # Get session if session_id provided
             if not session and session_id:
                 session = AgentSaveHelper.get_session(session_id)
-            
-            # Prepare study session data
+
             study_data = {
                 'subject': data.get('subject', 'General Study'),
                 'topic': data.get('topic'),
@@ -151,17 +150,17 @@ class AgentSaveHelper:
                 'notes': data.get('notes', data.get('content')),
                 'resources': data.get('resources'),
                 'session': session,
-                'user': user
+                'user': user,
             }
-            
+
             study_session = StudySession.objects.create(**study_data)
-            logger.info(f"Study session saved successfully: {study_session.id}")
+            logger.info(f"Study session saved: {study_session.id}")
             return study_session
-            
+
         except Exception as e:
             logger.error(f"Error saving study session: {str(e)}")
             return None
-    
+
     @staticmethod
     def save_wellness_activity(
         data: Dict[str, Any],
@@ -170,25 +169,15 @@ class AgentSaveHelper:
         user: Optional[User] = None
     ) -> Optional[WellnessActivity]:
         """
-        Save a wellness activity from agent output
-        
-        Args:
-            data: Dictionary containing wellness activity data
-            session: AgentSession object (optional)
-            session_id: Session UUID string (optional, if session not provided)
-            user: User object (optional)
-            
-        Returns:
-            WellnessActivity object if successful, None otherwise
+        Save a wellness activity from agent output.
+        Activities are append-only (each recording is unique).
         """
         try:
-            # Get session if session_id provided
             if not session and session_id:
                 session = AgentSaveHelper.get_session(session_id)
-            
-            # Prepare wellness activity data
+
             from datetime import datetime
-            
+
             activity_data = {
                 'activity_type': data.get('activity_type', 'exercise'),
                 'duration': data.get('duration'),
@@ -197,17 +186,17 @@ class AgentSaveHelper:
                 'metadata': data.get('metadata'),
                 'recorded_at': data.get('recorded_at', datetime.now()),
                 'session': session,
-                'user': user
+                'user': user,
             }
-            
+
             wellness_activity = WellnessActivity.objects.create(**activity_data)
-            logger.info(f"Wellness activity saved successfully: {wellness_activity.id}")
+            logger.info(f"Wellness activity saved: {wellness_activity.id}")
             return wellness_activity
-            
+
         except Exception as e:
             logger.error(f"Error saving wellness activity: {str(e)}")
             return None
-    
+
     @staticmethod
     def save_agent_output(
         agent_type: str,
@@ -216,21 +205,9 @@ class AgentSaveHelper:
         session_id: Optional[str] = None,
         user: Optional[User] = None
     ) -> Optional[Any]:
-        """
-        Auto-route save based on agent type
-        
-        Args:
-            agent_type: Type of agent (meal_planner, productivity, study, wellness)
-            data: Dictionary containing output data
-            session: AgentSession object (optional)
-            session_id: Session UUID string (optional, if session not provided)
-            user: User object (optional)
-            
-        Returns:
-            Saved object if successful, None otherwise
-        """
+        """Auto-route save based on agent type."""
         agent_type_lower = agent_type.lower()
-        
+
         if 'meal' in agent_type_lower or 'planner' in agent_type_lower:
             return AgentSaveHelper.save_meal_plan(data, session, session_id, user)
         elif 'productivity' in agent_type_lower or 'task' in agent_type_lower:
@@ -242,38 +219,28 @@ class AgentSaveHelper:
         else:
             logger.error(f"Unknown agent type: {agent_type}")
             return None
-    
+
     @staticmethod
     def bulk_save_outputs(
         items: List[Dict[str, Any]],
         default_session: Optional[AgentSession] = None,
         default_user: Optional[User] = None
     ) -> Dict[str, Any]:
-        """
-        Bulk save multiple agent outputs
-        
-        Args:
-            items: List of dicts with 'agent_type' and 'data' keys
-            default_session: Default session for all items
-            default_user: Default user for all items
-            
-        Returns:
-            Dictionary with saved items and errors
-        """
+        """Bulk save multiple agent outputs."""
         saved = []
         errors = []
-        
+
         for idx, item in enumerate(items):
             agent_type = item.get('agent_type')
             data = item.get('data', {})
             session = item.get('session', default_session)
             session_id = item.get('session_id')
             user = item.get('user', default_user)
-            
+
             if not agent_type:
                 errors.append({'index': idx, 'error': 'agent_type required'})
                 continue
-            
+
             try:
                 result = AgentSaveHelper.save_agent_output(
                     agent_type, data, session, session_id, user
@@ -284,12 +251,12 @@ class AgentSaveHelper:
                     errors.append({'index': idx, 'error': 'Failed to save'})
             except Exception as e:
                 errors.append({'index': idx, 'error': str(e)})
-        
+
         return {
             'saved': saved,
             'errors': errors,
             'success_count': len(saved),
-            'error_count': len(errors)
+            'error_count': len(errors),
         }
 
 

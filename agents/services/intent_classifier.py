@@ -23,6 +23,9 @@ class IntentClassifier:
     # Confidence threshold: if keyword score is above this, skip the LLM call
     KEYWORD_CONFIDENCE_THRESHOLD = 0.5
     
+    # Default agent when LLM returns an unknown/hallucinated agent name
+    DEFAULT_FALLBACK_AGENT = 'productivity_agent'
+
     AGENT_INTENTS = {
         'study_agent': [
             'study', 'learning', 'exam', 'notes', 'remember', 'recall',
@@ -214,13 +217,30 @@ Respond ONLY with JSON:
         if 'primary_agent' not in result:
             raise ValueError("Missing primary_agent in LLM response")
         
-        if result['primary_agent'] not in self.AGENT_INTENTS:
-            raise ValueError(f"Unknown agent: {result['primary_agent']}")
-        
+        result = self._normalize_result(result)
         result['classification_method'] = 'llm'
         result.setdefault('secondary_agents', [])
         result.setdefault('is_multi_agent', False)
         
+        return result
+    
+    def _normalize_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Normalize a classification result dict.
+
+        If ``primary_agent`` is not a known agent name the value is
+        replaced with ``DEFAULT_FALLBACK_AGENT`` and confidence is
+        clamped to 0.3 so downstream consumers know it's a guess.
+        """
+        if result.get('primary_agent') not in self.AGENT_INTENTS:
+            logger.warning(
+                "Unknown agent '%s' in classification result — falling back to %s",
+                result.get('primary_agent'),
+                self.DEFAULT_FALLBACK_AGENT,
+            )
+            result['primary_agent'] = self.DEFAULT_FALLBACK_AGENT
+            result['confidence'] = min(result.get('confidence', 0.3), 0.3)
+            result['fallback_applied'] = True
         return result
 
 
