@@ -26,9 +26,9 @@ Source inputs: `critical_flaw.env`, `missing.txt`, and current codebase audit.
 
 | Mission Name | Description | Status | Area |
 |---|---|---|---|
-| Chat Monolith Decomposition | Split `Chat.jsx` into focused modules (state, transport, renderer, action panels, session flow). | Pending | Frontend |
-| Structured Agent Output Rendering | Replace regex-heavy parsing with schema-driven rendering for plans, tasks, meals, habits, and study outputs. | Pending | Frontend |
-| Action Feedback UX | Display applied actions (saved task/meal/habit IDs + failures) in chat UI for transparency. | Pending | Frontend + Backend |
+| Chat Monolith Decomposition | Split `Chat.jsx` into focused modules (state, transport, renderer, action panels, session flow). | Done | Frontend |
+| Structured Agent Output Rendering | Replace regex-heavy parsing with schema-driven rendering for plans, tasks, meals, habits, and study outputs. | Done | Frontend |
+| Action Feedback UX | Display applied actions (saved task/meal/habit IDs + failures) in chat UI for transparency. | Done | Frontend + Backend |
 
 ## Sprint 4 — Missing Product Capabilities
 
