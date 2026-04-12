@@ -24,7 +24,7 @@ export const sendMessage = async (message, sessionId = null, forceAgent = null) 
     });
 };
 
-export const streamChat = async ({ message, sessionId, onChunk, onAgentSelected, onError, onDone }) => {
+export const streamChat = async ({ message, sessionId, onChunk, onAgentSelected, onActionsApplied, onError, onDone }) => {
     const token = localStorage.getItem('lifeos_token');
 
     try {
@@ -84,6 +84,9 @@ export const streamChat = async ({ message, sessionId, onChunk, onAgentSelected,
                         } else if (data.type === 'chunk' && onChunk) {
                             console.log('[STREAM] Chunk content:', data.content);
                             onChunk(data.content);
+                        } else if (data.type === 'actions_applied' && onActionsApplied) {
+                            // Sprint 3: Action Feedback UX
+                            onActionsApplied(data.actions);
                         } else if (data.type === 'error' && onError) {
                             onError(data.error);
                         } else if (data.type === 'done' && onDone) {

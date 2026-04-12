@@ -12,24 +12,35 @@ export const AGENT_META = {
         label: 'Meal Planner',
         color: 'emerald',
         route: '/meals',
+        icon: '🍽️',
     },
     productivity: {
         key: 'productivity_agent',
         label: 'Productivity',
         color: 'purple',
         route: '/productivity',
+        icon: '📋',
     },
     study: {
         key: 'study_agent',
         label: 'Study Buddy',
         color: 'blue',
         route: '/study',
+        icon: '📚',
     },
     wellness: {
         key: 'wellness_agent',
         label: 'Wellness',
         color: 'teal',
         route: '/wellness',
+        icon: '🧘',
+    },
+    habit_coach: {
+        key: 'habit_coach_agent',
+        label: 'Habit Coach',
+        color: 'amber',
+        route: '/habits',
+        icon: '⚡',
     },
 };
 
@@ -37,6 +48,7 @@ export const AGENT_META = {
 
 export function detectAgentKey(agentName) {
     const name = (agentName || '').toLowerCase().replace(/\s+/g, '_');
+    if (name.includes('habit') || name.includes('coach')) return 'habit_coach';
     if (name.includes('meal') || name.includes('planner')) return 'meal_planner';
     if (name.includes('productivity') || name.includes('task')) return 'productivity';
     if (name.includes('study') || name.includes('buddy')) return 'study';

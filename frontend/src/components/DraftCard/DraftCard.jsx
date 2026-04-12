@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { Check, Sparkles, Loader2, Save, ChevronDown, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { useNavigate } from 'react-router-dom';
 import { saveAgentResponse } from '../../api/chat';
 import { useToast } from '../../context/ToastContext';
 import { AGENT_META, detectAgentKey, buildSavePayload } from '../../utils/agentParsers';
 import MessageActions from '../MessageActions/MessageActions';
+import AgentOutputRenderer from '../AgentOutputRenderer/AgentOutputRenderer';
+import ActionFeedbackBanner from '../ActionFeedbackBanner/ActionFeedbackBanner';
 
 const ACCENT_MAP = {
     emerald: {
@@ -47,29 +47,28 @@ const ACCENT_MAP = {
     },
 };
 
-const MARKDOWN_COMPONENTS = {
-    h1: ({ children }) => <h1 className="text-2xl font-bold text-white mb-3 mt-4">{children}</h1>,
-    h2: ({ children }) => <h2 className="text-xl font-bold text-white mb-2 mt-3">{children}</h2>,
-    h3: ({ children }) => <h3 className="text-lg font-semibold text-white mb-2 mt-2">{children}</h3>,
-    p: ({ children }) => <p className="text-white/80 mb-2">{children}</p>,
-    ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1 text-white/80">{children}</ul>,
-    ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1 text-white/80">{children}</ol>,
-    li: ({ children }) => <li className="text-white/80 ml-2">{children}</li>,
-    code: ({ inline, children }) =>
-        inline ?
-            <code className="bg-white/10 px-1.5 py-0.5 rounded text-sm font-mono text-yellow-300">{children}</code> :
-            <code className="block bg-white/10 p-3 rounded-lg text-sm font-mono text-yellow-300 my-2 overflow-x-auto">{children}</code>,
-    strong: ({ children }) => <strong className="font-bold text-white">{children}</strong>,
-    em: ({ children }) => <em className="italic text-white/90">{children}</em>,
-    blockquote: ({ children }) => <blockquote className="border-l-4 border-purple-400 pl-4 italic text-white/70 my-2">{children}</blockquote>,
-};
-
 /**
- * DraftCard — Renders an agent response with smart save-to-database capabilities.
- * Shows the response content with markdown rendering, a preview of what will be saved,
- * and action buttons to save to the correct model.
+ * DraftCard — Renders an agent response using the schema-driven AgentOutputRenderer.
+ *
+ * Sprint 3 changes:
+ *  - Content is now rendered by AgentOutputRenderer (schema-driven, per-agent UI)
+ *    instead of a single generic ReactMarkdown block.
+ *  - Action feedback (actionsApplied) is rendered via ActionFeedbackBanner when
+ *    the backend auto-saved structured records from the response.
  */
-const DraftCard = ({ content, agentName, timestamp, sessionId, msgIndex, isSaved, onMarkSaved, onCopy, onDelete, formatTimestamp }) => {
+const DraftCard = ({
+    content,
+    agentName,
+    timestamp,
+    sessionId,
+    msgIndex,
+    isSaved,
+    onMarkSaved,
+    onCopy,
+    onDelete,
+    formatTimestamp,
+    actionsApplied,   // Sprint 3: Action Feedback UX
+}) => {
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(isSaved || false);
     const [showDetails, setShowDetails] = useState(false);
@@ -110,7 +109,11 @@ const DraftCard = ({ content, agentName, timestamp, sessionId, msgIndex, isSaved
             {/* Header */}
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-white/50">
-                    {meta ? <span>{meta.icon}</span> : <Sparkles size={12} className="text-yellow-400" />}
+                    {meta ? (
+                        <span className="text-sm">{meta.icon || <Sparkles size={12} className="text-yellow-400" />}</span>
+                    ) : (
+                        <Sparkles size={12} className="text-yellow-400" />
+                    )}
                     <span>{agentName || 'Agent'}</span>
                     {meta && (
                         <button
@@ -129,15 +132,18 @@ const DraftCard = ({ content, agentName, timestamp, sessionId, msgIndex, isSaved
                 </div>
             </div>
 
-            {/* Content */}
-            <div className="prose prose-invert prose-sm max-w-none mb-4 text-white/90 leading-relaxed">
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
-                    {content}
-                </ReactMarkdown>
+            {/* Sprint 3 Mission 2: Schema-driven rendering */}
+            <div className="mb-4">
+                <AgentOutputRenderer content={content} agentName={agentName} />
             </div>
 
-            {/* Save Data Preview */}
-            {isActionable && previewPayload && !saved && (
+            {/* Sprint 3 Mission 3: Action Feedback UX — auto-save results */}
+            {actionsApplied && actionsApplied.length > 0 && (
+                <ActionFeedbackBanner actions={actionsApplied} />
+            )}
+
+            {/* Save Data Preview (manual save) */}
+            {isActionable && previewPayload && !saved && !actionsApplied?.length && (
                 <div className="mb-3">
                     <button
                         onClick={() => setShowDetails(!showDetails)}
@@ -169,8 +175,8 @@ const DraftCard = ({ content, agentName, timestamp, sessionId, msgIndex, isSaved
                 </div>
             )}
 
-            {/* Action Buttons */}
-            {isActionable && (
+            {/* Action Buttons (only show manual save if no auto-actions applied) */}
+            {isActionable && !actionsApplied?.length && (
                 <div className="flex gap-2">
                     <button
                         onClick={handleSave}
@@ -209,6 +215,19 @@ const DraftCard = ({ content, agentName, timestamp, sessionId, msgIndex, isSaved
                         </motion.button>
                     )}
                 </div>
+            )}
+
+            {/* If actions were auto-applied, show a "View in [section]" shortcut */}
+            {actionsApplied?.length > 0 && meta && (
+                <motion.button
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    onClick={() => navigate(meta.route)}
+                    className="mt-2 flex items-center gap-2 text-xs text-white/40 hover:text-white/70 transition-colors"
+                >
+                    <ExternalLink size={11} />
+                    View in {meta.label}
+                </motion.button>
             )}
         </div>
     );
