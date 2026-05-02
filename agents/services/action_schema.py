@@ -94,6 +94,18 @@ def _is_hex_color(value: Any) -> bool:
     return bool(re.match(r"^#[0-9A-Fa-f]{6}$", value))
 
 
+def _is_iso_datetime(value: Any) -> bool:
+    """Accept ISO datetime strings."""
+    if not isinstance(value, str):
+        return False
+    try:
+        # Simplistic ISO datetime validation that covers typical LLM outputs
+        datetime.fromisoformat(value.replace('Z', '+00:00'))
+        return True
+    except ValueError:
+        return False
+
+
 # ---------------------------------------------------------------------------
 # Schema registry
 # ---------------------------------------------------------------------------
@@ -155,6 +167,20 @@ ACTION_SCHEMAS: Dict[str, Dict[str, _FieldSpec]] = {
         "target_count": _FieldSpec(validator=_is_positive_int, label="positive integer", default=1),
         "icon": _FieldSpec(validator=_is_optional_str, label="emoji string", default="✅"),
         "color": _FieldSpec(validator=_is_hex_color, label="#RRGGBB hex color", default="#8B5CF6"),
+    },
+    "create_calendar_event": {
+        "title": _FieldSpec(required=True, validator=_is_non_empty_str, label="non-empty string"),
+        "description": _FieldSpec(validator=_is_optional_str, label="string or null"),
+        "start_time": _FieldSpec(required=True, validator=_is_iso_datetime, label="ISO datetime string"),
+        "end_time": _FieldSpec(required=True, validator=_is_iso_datetime, label="ISO datetime string"),
+        "location": _FieldSpec(validator=_is_optional_str, label="string or null"),
+        "attendees": _FieldSpec(label="list or null"),
+    },
+    "draft_email": {
+        "subject": _FieldSpec(required=True, validator=_is_non_empty_str, label="non-empty string"),
+        "body": _FieldSpec(required=True, validator=_is_non_empty_str, label="non-empty string"),
+        "to_address": _FieldSpec(required=True, validator=_is_non_empty_str, label="non-empty string"),
+        "from_address": _FieldSpec(validator=_is_optional_str, label="string or null"),
     },
 }
 

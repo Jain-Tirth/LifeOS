@@ -61,6 +61,11 @@ class IntentClassifier:
             'morning routine', 'evening routine', 'bedtime routine',
             'new habit', 'stop habit', 'habit stack', 'atomic habits',
             'how many days', 'did i do', 'check in', 'log habit',
+        ],
+        'communication_agent': [
+            'email', 'send an email', 'draft an email', 'gmail', 'inbox',
+            'calendar', 'schedule', 'meeting', 'appointment', 'event',
+            'book a time', 'availability', 'sync calendar', 'invite',
         ]
     }
     
@@ -187,6 +192,8 @@ class IntentClassifier:
 - productivity_agent: Tasks, scheduling, goals, time management
 - wellness_agent: Exercise, meditation, sleep, mood, health
 - meal_planner_agent: Meals, recipes, nutrition, cooking
+- habit_coach_agent: Habits, routines, consistency, streaks
+- communication_agent: Emails, sending messages, calendar events, meetings, scheduling appointments
 
 Message: "{user_message}"
 {f"Recent context: {context}" if context else ""}

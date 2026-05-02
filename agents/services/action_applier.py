@@ -32,6 +32,8 @@ from .save_helper import (
     save_meal_plan,
     save_study_session,
     save_wellness_activity,
+    save_calendar_event,
+    save_email_message,
 )
 from .action_schema import (
     validate_action,
@@ -133,7 +135,13 @@ class ActionApplier:
         normalized = []
         for item in extracted:
             action_name = item.get('action') or item.get('type')
-            data = item.get('data') if isinstance(item.get('data'), dict) else {}
+            
+            if 'data' in item and isinstance(item['data'], dict):
+                data = item['data']
+            else:
+                # Flat JSON fallback: if the agent omitted 'data' and put fields at top level
+                data = {k: v for k, v in item.items() if k not in ('action', 'type', 'actions')}
+                
             if action_name in REGISTERED_ACTIONS:
                 normalized.append({'action': action_name, 'data': data})
 
@@ -215,6 +223,16 @@ class ActionApplier:
                     obj = await sync_to_async(save_study_session)(data=validated_data, session=session, user=user)
                 elif action_name == 'create_wellness_activity':
                     obj = await sync_to_async(save_wellness_activity)(data=validated_data, session=session, user=user)
+                elif action_name == 'create_calendar_event':
+                    obj = await sync_to_async(save_calendar_event)(data=validated_data, session=session, user=user)
+                    if obj:
+                        from .google_integration import google_service
+                        await google_service.sync_calendar_event(obj)
+                elif action_name == 'draft_email':
+                    obj = await sync_to_async(save_email_message)(data=validated_data, session=session, user=user)
+                    if obj:
+                        from .google_integration import google_service
+                        await google_service.sync_email_draft(obj)
                 elif action_name == 'create_habit':
                     obj = await self._create_habit(validated_data, user)
                 else:
