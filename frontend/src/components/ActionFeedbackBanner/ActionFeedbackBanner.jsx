@@ -17,6 +17,8 @@ const ACTION_META = {
     create_study_session: { label: 'Study session saved', color: 'blue', icon: '📚' },
     create_wellness_activity: { label: 'Wellness activity saved', color: 'teal', icon: '🧘' },
     create_habit: { label: 'Habit saved', color: 'amber', icon: '⚡' },
+    create_calendar_event: { label: 'Calendar event synced', color: 'sky', icon: '📅' },
+    draft_email: { label: 'Email drafted', color: 'sky', icon: '📧' },
 };
 
 const COLOR_MAP = {
@@ -25,6 +27,7 @@ const COLOR_MAP = {
     blue: 'bg-blue-500/10 border-blue-500/20 text-blue-300',
     teal: 'bg-teal-500/10 border-teal-500/20 text-teal-300',
     amber: 'bg-amber-500/10 border-amber-500/20 text-amber-300',
+    sky: 'bg-sky-500/10 border-sky-500/20 text-sky-300',
     red: 'bg-red-500/10 border-red-500/20 text-red-300',
 };
 

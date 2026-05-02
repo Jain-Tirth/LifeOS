@@ -334,6 +334,91 @@ export function HabitRenderer({ content }) {
     );
 }
 
+export function CommunicationRenderer({ content }) {
+    let parsedData = null;
+    try {
+        // Try to extract JSON from a markdown block if present
+        const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/i);
+        if (jsonMatch && jsonMatch[1]) {
+            parsedData = JSON.parse(jsonMatch[1]);
+        } else {
+            parsedData = JSON.parse(content);
+        }
+        
+        // If it's a nested payload (from the agent prompt), extract the first action's data
+        if (parsedData?.actions && Array.isArray(parsedData.actions) && parsedData.actions.length > 0) {
+            parsedData = parsedData.actions[0].data || parsedData.actions[0];
+            parsedData.action = parsedData.action || parsedData.actions[0].action;
+        }
+    } catch (e) {
+        // Not a valid JSON string or block, fallback to standard markdown checking
+    }
+
+    const isEmail = parsedData?.action === 'draft_email' || content.toLowerCase().includes('subject:') || content.toLowerCase().includes('to_address');
+    const isCalendar = parsedData?.action === 'create_calendar_event' || content.toLowerCase().includes('start_time') || content.toLowerCase().includes('event:');
+    
+    let typeLabel = 'Communication';
+    if (isCalendar) {
+        typeLabel = 'Calendar Event';
+    } else if (isEmail) {
+        typeLabel = 'Email Draft';
+    }
+
+    return (
+        <div className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+                <span className="text-[11px] px-2.5 py-1 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-300 font-medium capitalize">
+                   {typeLabel}
+                </span>
+            </div>
+            
+            {parsedData ? (
+                <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-2">
+                    {parsedData.action === 'draft_email' && (
+                        <>
+                            <div className="text-sm border-b border-white/10 pb-2 mb-2">
+                                <div className="text-white/60"><span className="text-white/40 font-medium">To:</span> {parsedData.to_address || parsedData.to}</div>
+                                <div className="text-white/80 font-medium mt-1"><span className="text-white/40 font-normal">Subject:</span> {parsedData.subject}</div>
+                            </div>
+                            <div className="text-white/90 text-sm whitespace-pre-wrap font-sans">
+                                {parsedData.body}
+                            </div>
+                        </>
+                    )}
+                    {parsedData.action === 'create_calendar_event' && (
+                        <>
+                            <div className="text-sm border-b border-white/10 pb-2 mb-2">
+                                <div className="text-white/90 font-medium text-base mb-1">{parsedData.title}</div>
+                                <div className="text-white/60 flex flex-col gap-1">
+                                    <span><span className="text-white/40">Starts:</span> {parsedData.start_time}</span>
+                                    <span><span className="text-white/40">Ends:</span> {parsedData.end_time}</span>
+                                </div>
+                            </div>
+                            <div className="text-white/80 text-sm whitespace-pre-wrap">
+                                {parsedData.description}
+                            </div>
+                            {parsedData.attendees && parsedData.attendees.length > 0 && (
+                                <div className="mt-3 pt-2 border-t border-white/10 text-xs text-white/50">
+                                    <span className="font-medium text-white/40">Attendees:</span> {parsedData.attendees.join(', ')}
+                                </div>
+                            )}
+                        </>
+                    )}
+                    {parsedData.action !== 'draft_email' && parsedData.action !== 'create_calendar_event' && (
+                        <div className="prose prose-invert prose-sm max-w-none">
+                            <pre className="text-xs bg-black/20 p-2 rounded">{JSON.stringify(parsedData, null, 2)}</pre>
+                        </div>
+                    )}
+                </div>
+            ) : (
+                <div className="prose prose-invert prose-sm max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD}>{content}</ReactMarkdown>
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ─── Generic Markdown Fallback ────────────────────────────────────────────────
 export function GenericMarkdownRenderer({ content }) {
     return (
@@ -361,6 +446,7 @@ const AgentOutputRenderer = ({ content, agentName }) => {
         case 'study': return <StudyPlanRenderer content={content} />;
         case 'wellness': return <WellnessRenderer content={content} />;
         case 'habit_coach': return <HabitRenderer content={content} />;
+        case 'communication': return <CommunicationRenderer content={content} />;
         default: return <GenericMarkdownRenderer content={content} />;
     }
 };
