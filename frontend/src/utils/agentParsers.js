@@ -42,6 +42,13 @@ export const AGENT_META = {
         route: '/habits',
         icon: '⚡',
     },
+    communication: {
+        key: 'communication_agent',
+        label: 'Communication',
+        color: 'sky',
+        route: '/communication',
+        icon: '✉️',
+    },
 };
 
 // ─── Agent Detection ──────────────────────────────────────────────────────────
@@ -53,6 +60,7 @@ export function detectAgentKey(agentName) {
     if (name.includes('productivity') || name.includes('task')) return 'productivity';
     if (name.includes('study') || name.includes('buddy')) return 'study';
     if (name.includes('wellness') || name.includes('health')) return 'wellness';
+    if (name.includes('communication') || name.includes('email') || name.includes('calendar')) return 'communication';
     if (name === 'orchestrator' || name === 'agent') return null;
     return null;
 }
