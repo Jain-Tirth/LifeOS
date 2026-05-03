@@ -77,12 +77,9 @@ export const streamChat = async ({ message, sessionId, onChunk, onAgentSelected,
                 if (line.startsWith('data: ')) {
                     try {
                         const data = JSON.parse(line.slice(6));
-                        console.log('[STREAM] Parsed data:', data);
-
                         if (data.type === 'agent_selected' && onAgentSelected) {
                             onAgentSelected(data);
                         } else if (data.type === 'chunk' && onChunk) {
-                            console.log('[STREAM] Chunk content:', data.content);
                             onChunk(data.content);
                         } else if (data.type === 'actions_applied' && onActionsApplied) {
                             // Sprint 3: Action Feedback UX

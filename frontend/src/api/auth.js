@@ -9,12 +9,19 @@ export const login = async (email, password) => {
 };
 
 export const register = async (email, password, firstName, lastName) => {
-    return client.post('/auth/register/', {
+    const response = await client.post('/auth/register/', {
         email,
         password,
+        password_confirm: password,
         first_name: firstName,
         last_name: lastName,
     });
+
+    if (response.data.token) {
+        localStorage.setItem('lifeos_token', response.data.token);
+    }
+
+    return response.data;
 };
 
 export const getProfile = async () => {
