@@ -9,6 +9,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, XCircle, ChevronDown, Database, Zap } from 'lucide-react';
+import { normalizeErrorMessage } from '../../utils/errorMessage';
 
 // Maps action name → user-friendly label + color
 const ACTION_META = {
@@ -91,7 +92,7 @@ function ActionRow({ action }) {
                         <div className="mt-2 font-mono opacity-60 break-all whitespace-pre-wrap">
                             {isSuccess
                                 ? JSON.stringify(action.result, null, 2)
-                                : action.error || 'Unknown error'
+                                : normalizeErrorMessage(action.error, 'Unknown error')
                             }
                         </div>
                     </motion.div>

@@ -83,6 +83,7 @@ const Chat = () => {
         appendChunk,
         setLastMsgAgent,
         setLastMsgActions,
+        setSavedItemsMap,
     });
 
     // ─── Scroll handling ───────────────────────────────────────────────────

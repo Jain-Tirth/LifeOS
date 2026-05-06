@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { Sparkles, AlertCircle } from 'lucide-react';
+import { normalizeErrorMessage } from '../../utils/errorMessage';
 
 const Register = () => {
     const [email, setEmail] = useState('');
@@ -34,7 +35,12 @@ const Register = () => {
             await register(email, password, firstName, lastName);
             navigate('/dashboard');
         } catch (error) {
-            setError(error.response?.data?.error || error.response?.data?.email?.[0] || 'Registration failed. Please try again.');
+            setError(
+                normalizeErrorMessage(
+                    error.response?.data?.error || error.response?.data?.email,
+                    'Registration failed. Please try again.'
+                )
+            );
         } finally {
             setLoading(false);
         }

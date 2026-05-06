@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { Sparkles, AlertCircle } from 'lucide-react';
+import { normalizeErrorMessage } from '../../utils/errorMessage';
 
 const Login = () => {
     const [email, setEmail] = useState('');
@@ -20,7 +21,7 @@ const Login = () => {
             await login(email, password);
             navigate('/dashboard');
         } catch (error) {
-            setError(error.response?.data?.error || 'Login failed. Please check your credentials.');
+            setError(normalizeErrorMessage(error.response?.data?.error, 'Login failed. Please check your credentials.'));
         } finally {
             setLoading(false);
         }

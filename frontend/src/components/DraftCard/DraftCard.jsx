@@ -45,6 +45,13 @@ const ACCENT_MAP = {
         btnSaved: 'bg-amber-500/30 border-amber-500/50 text-amber-300',
         text: 'text-amber-400',
     },
+    sky: {
+        bg: 'from-sky-500/20 to-sky-600/10',
+        border: 'border-sky-500/20',
+        btnBg: 'bg-sky-500/20 hover:bg-sky-500/30 border-sky-500/30',
+        btnSaved: 'bg-sky-500/30 border-sky-500/50 text-sky-300',
+        text: 'text-sky-400',
+    },
 };
 
 /**
@@ -79,7 +86,7 @@ const DraftCard = ({
     const meta = agentKey ? AGENT_META[agentKey] : null;
     const isActionable = content && (content.includes('-') || content.includes('\n') || content.length > 80);
     const previewPayload = agentKey ? buildSavePayload(agentKey, content) : null;
-    const accent = meta ? ACCENT_MAP[meta.color] : ACCENT_MAP.purple;
+    const accent = (meta && ACCENT_MAP[meta.color]) ? ACCENT_MAP[meta.color] : ACCENT_MAP.purple;
 
     const handleSave = async () => {
         setSaving(true);
