@@ -2,7 +2,7 @@
  * useChatTransport — handles streaming, sending, speech recognition.
  * Extracted from Chat.jsx as part of Sprint 3: Chat Monolith Decomposition.
  */
-import { streamChat, getSessions } from '../../../api/chat';
+import { streamChat, getSessions, getSessionSavedItems } from '../../../api/chat';
 import { useToast } from '../../../context/ToastContext';
 
 export function useChatTransport({
@@ -20,6 +20,7 @@ export function useChatTransport({
     appendChunk,
     setLastMsgAgent,
     setLastMsgActions,
+    setSavedItemsMap,
 }) {
     const toast = useToast();
 
@@ -32,19 +33,34 @@ export function useChatTransport({
         setIsTyping(true);
         appendAgentPlaceholder();
 
+        let activeSessionId = sessionId;
         await streamChat({
             message: content,
             sessionId,
             onChunk: (chunk) => appendChunk(chunk),
             onAgentSelected: (data) => {
-                if (!sessionId && data.session_id) setSessionId(data.session_id);
+                if (!activeSessionId && data.session_id) {
+                    activeSessionId = data.session_id;
+                    setSessionId(data.session_id);
+                }
                 const agentName = data.agent
                     .replace(/_/g, ' ')
                     .replace(/\b\w/g, l => l.toUpperCase());
                 setLastMsgAgent(agentName, data.agent);
             },
-            onActionsApplied: (actions) => {
+            onActionsApplied: async (actions) => {
                 setLastMsgActions(actions);
+                if (activeSessionId) {
+                    try {
+                        const res = await getSessionSavedItems(activeSessionId);
+                        setSavedItemsMap(prev => ({
+                            ...prev,
+                            [activeSessionId]: res.data.items
+                        }));
+                    } catch (err) {
+                        console.error('Failed to refresh saved items after actions:', err);
+                    }
+                }
             },
             onDone: async () => {
                 setIsTyping(false);

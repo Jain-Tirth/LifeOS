@@ -16,9 +16,11 @@ function getCookie(name) {
     return cookieValue;
 }
 
-// Use relative path - Vite proxy will forward /api requests to Django
+const apiBaseUrl = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
+
+// Use VITE_API_URL in production and fall back to the local Vite proxy in dev.
 const client = axios.create({
-    baseURL: '/api',
+    baseURL: apiBaseUrl,
     headers: {
         'Content-Type': 'application/json',
     },
