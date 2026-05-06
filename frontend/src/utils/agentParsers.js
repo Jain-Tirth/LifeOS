@@ -7,46 +7,39 @@
 // ─── Agent Metadata ───────────────────────────────────────────────────────────
 
 export const AGENT_META = {
-    meal_planner: {
-        key: 'meal_planner_agent',
-        label: 'Meal Planner',
-        color: 'emerald',
-        route: '/meals',
-        icon: '🍽️',
+    execution: {
+        key: 'execution_agent',
+        label: 'Execution',
+        color: 'sky',
+        route: '/chat',
+        icon: '⚙️',
     },
-    productivity: {
-        key: 'productivity_agent',
-        label: 'Productivity',
+    insight: {
+        key: 'insight_agent',
+        label: 'Insight',
         color: 'purple',
-        route: '/productivity',
-        icon: '📋',
+        route: '/dashboard',
+        icon: '📈',
     },
-    study: {
-        key: 'study_agent',
-        label: 'Study Buddy',
-        color: 'blue',
-        route: '/study',
-        icon: '📚',
-    },
-    wellness: {
-        key: 'wellness_agent',
-        label: 'Wellness',
-        color: 'teal',
-        route: '/wellness',
-        icon: '🧘',
-    },
-    habit_coach: {
-        key: 'habit_coach_agent',
-        label: 'Habit Coach',
+    planning: {
+        key: 'planning_agent',
+        label: 'Planning',
         color: 'amber',
-        route: '/habits',
-        icon: '⚡',
+        route: '/dashboard',
+        icon: '🧭',
+    },
+    memory: {
+        key: 'memory_agent',
+        label: 'Memory',
+        color: 'teal',
+        route: '/dashboard',
+        icon: '🧠',
     },
     communication: {
         key: 'communication_agent',
         label: 'Communication',
-        color: 'sky',
-        route: '/communication',
+        color: 'blue',
+        route: '/chat',
         icon: '✉️',
     },
 };
@@ -55,11 +48,10 @@ export const AGENT_META = {
 
 export function detectAgentKey(agentName) {
     const name = (agentName || '').toLowerCase().replace(/\s+/g, '_');
-    if (name.includes('habit') || name.includes('coach')) return 'habit_coach';
-    if (name.includes('meal') || name.includes('planner')) return 'meal_planner';
-    if (name.includes('productivity') || name.includes('task')) return 'productivity';
-    if (name.includes('study') || name.includes('buddy')) return 'study';
-    if (name.includes('wellness') || name.includes('health')) return 'wellness';
+    if (name.includes('execution') || name.includes('action') || name.includes('executor')) return 'execution';
+    if (name.includes('insight') || name.includes('analysis') || name.includes('analytics')) return 'insight';
+    if (name.includes('planning') || name.includes('planner') || name.includes('plan')) return 'planning';
+    if (name.includes('memory') || name.includes('context') || name.includes('profile')) return 'memory';
     if (name.includes('communication') || name.includes('email') || name.includes('calendar')) return 'communication';
     if (name === 'orchestrator' || name === 'agent') return null;
     return null;
@@ -69,19 +61,22 @@ export function detectAgentFromContent(content) {
     if (!content || content.length < 20) return null;
     const lower = content.toLowerCase();
 
-    const scores = { meal_planner: 0, productivity: 0, study: 0, wellness: 0 };
+    const scores = { execution: 0, insight: 0, planning: 0, memory: 0, communication: 0 };
 
-    const mealWords = ['recipe', 'ingredient', 'meal', 'cook', 'breakfast', 'lunch', 'dinner', 'snack', 'nutriti', 'calorie', 'protein', 'carb', 'food', 'dish', 'cuisine', 'prep', 'serving'];
-    mealWords.forEach(w => { if (lower.includes(w)) scores.meal_planner += 2; });
+    const executionWords = ['create task', 'update task', 'task', 'event', 'calendar', 'todo', 'action', 'create', 'update', 'delete', 'book'];
+    executionWords.forEach(w => { if (lower.includes(w)) scores.execution += 2; });
 
-    const taskWords = ['task', 'deadline', 'priority', 'to-do', 'todo', 'schedule', 'organize', 'productivity', 'complete', 'assign', 'project', 'milestone', 'goal', 'action item'];
-    taskWords.forEach(w => { if (lower.includes(w)) scores.productivity += 2; });
+    const insightWords = ['insight', 'pattern', 'trend', 'correlat', 'analysis', 'analyze', 'recommend', 'optimize', 'why'];
+    insightWords.forEach(w => { if (lower.includes(w)) scores.insight += 2; });
 
-    const studyWords = ['study', 'learn', 'subject', 'topic', 'exam', 'quiz', 'flashcard', 'chapter', 'textbook', 'lecture', 'homework', 'assignment', 'course', 'curriculum', 'revision', 'concept'];
-    studyWords.forEach(w => { if (lower.includes(w)) scores.study += 2; });
+    const planningWords = ['plan', 'roadmap', 'steps', 'schedule', 'timeline', 'prioritize', 'organize', 'break it down', 'goal'];
+    planningWords.forEach(w => { if (lower.includes(w)) scores.planning += 2; });
 
-    const wellnessWords = ['exercise', 'workout', 'meditation', 'sleep', 'hydrat', 'water', 'wellness', 'yoga', 'stretch', 'breath', 'mindful', 'mood', 'health', 'relax', 'stress', 'fitness', 'walk', 'run', 'rest'];
-    wellnessWords.forEach(w => { if (lower.includes(w)) scores.wellness += 2; });
+    const memoryWords = ['remember', 'memory', 'preference', 'routine', 'habit', 'context', 'profile'];
+    memoryWords.forEach(w => { if (lower.includes(w)) scores.memory += 2; });
+
+    const communicationWords = ['email', 'inbox', 'message', 'summarize', 'reply', 'follow up', 'draft'];
+    communicationWords.forEach(w => { if (lower.includes(w)) scores.communication += 2; });
 
     const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
     if (sorted[0][1] >= 4 && sorted[0][1] > sorted[1][1]) return sorted[0][0];
@@ -324,10 +319,11 @@ export function parseWellnessData(content) {
 
 export function buildSavePayload(agentKey, content) {
     switch (agentKey) {
-        case 'meal_planner': return { agent_type: 'meal_planner_agent', data: parseMealData(content) };
-        case 'productivity': return { agent_type: 'productivity_agent', data: parseTaskData(content) };
-        case 'study': return { agent_type: 'study_agent', data: parseStudyData(content) };
-        case 'wellness': return { agent_type: 'wellness_agent', data: parseWellnessData(content) };
-        default: return { agent_type: 'productivity_agent', data: parseTaskData(content) };
+        case 'communication': return null;
+        case 'execution': return null;
+        case 'insight': return null;
+        case 'planning': return null;
+        case 'memory': return null;
+        default: return null;
     }
 }

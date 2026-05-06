@@ -4,9 +4,7 @@ import {
     LayoutDashboard, 
     MessageSquare, 
     Calendar, 
-    BookOpen, 
     Heart, 
-    Utensils,
     Flame,
     LogOut,
     Menu,
@@ -37,21 +35,19 @@ const Layout = ({ children }) => {
         { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
         { icon: MessageSquare, label: 'Orchestrator', path: '/chat' },
         { icon: Calendar, label: 'Tasks', path: '/productivity' }, // Placeholder route
-        { icon: BookOpen, label: 'Study', path: '/study' }, // Placeholder route
         { icon: Heart, label: 'Wellness', path: '/wellness' }, // Placeholder route
-        { icon: Utensils, label: 'Meals', path: '/meals' },
         { icon: Flame, label: 'Habits', path: '/habits' },
     ];
 
     return (
-        <div className="flex min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+        <div className="flex min-h-screen bg-linear-to-br from-slate-900 via-purple-900 to-slate-900">
             {/* Desktop Sidebar */}
             <aside className="hidden lg:flex flex-col w-72 p-6 glass-sidebar border-r border-white/10 bg-black/20 backdrop-blur-xl fixed h-full z-20">
                 <div className="flex items-center gap-3 mb-10 px-2">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-lg bg-linear-to-tr from-blue-500 to-purple-500 flex items-center justify-center">
                         <span className="text-white font-bold text-lg">L</span>
                     </div>
-                    <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/70 tracking-tight font-display">
+                    <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-linear-to-r from-white to-white/70 tracking-tight font-display">
                         LifeOS
                     </h1>
                 </div>
@@ -68,7 +64,7 @@ const Layout = ({ children }) => {
 
                 <div className="mt-auto pt-6 border-t border-white/10">
                     <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/5 mb-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-yellow-400 to-orange-500 flex items-center justify-center text-white font-bold text-xs">
+                        <div className="w-8 h-8 rounded-full bg-linear-to-tr from-yellow-400 to-orange-500 flex items-center justify-center text-white font-bold text-xs">
                             {user?.first_name?.[0] || 'U'}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -93,7 +89,7 @@ const Layout = ({ children }) => {
             {/* Mobile Header */}
             <header className="lg:hidden fixed top-0 w-full z-30 px-6 py-4 bg-black/20 backdrop-blur-xl border-b border-white/10 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center">
+                    <div className="w-8 h-8 rounded-lg bg-linear-to-tr from-blue-500 to-purple-500 flex items-center justify-center">
                         <span className="text-white font-bold">L</span>
                     </div>
                     <h1 className="text-xl font-bold text-white font-display">LifeOS</h1>

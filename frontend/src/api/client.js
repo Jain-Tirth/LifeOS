@@ -16,7 +16,7 @@ function getCookie(name) {
     return cookieValue;
 }
 
-const apiBaseUrl = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
+export const apiBaseUrl = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
 
 // Use VITE_API_URL in production and fall back to the local Vite proxy in dev.
 const client = axios.create({
@@ -39,7 +39,7 @@ export const initCSRF = async () => {
 // Add interceptor for auth token and CSRF
 client.interceptors.request.use((config) => {
     // Add JWT token if available
-    const token = localStorage.getItem('lifeos_token');
+    const token = localStorage.getItem('lifeos_access_token') || localStorage.getItem('lifeos_token');
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
@@ -56,15 +56,45 @@ client.interceptors.request.use((config) => {
 // Handle token expiration
 client.interceptors.response.use(
     (response) => response,
-    (error) => {
-        if (error.response && error.response.status === 401) {
-            // Token expired or invalid
-            localStorage.removeItem('lifeos_token');
-            // Optionally redirect to login
+    async (error) => {
+        const originalRequest = error.config;
+
+        if (error.response && error.response.status === 401 && originalRequest && !originalRequest._retry) {
+            const refreshToken = localStorage.getItem('lifeos_refresh_token');
+            if (refreshToken) {
+                originalRequest._retry = true;
+                try {
+                    const refreshClient = axios.create({
+                        baseURL: apiBaseUrl,
+                        headers: { 'Content-Type': 'application/json' },
+                        withCredentials: true,
+                    });
+
+                    const refreshResponse = await refreshClient.post('/auth/refresh/', {
+                        refresh: refreshToken,
+                    });
+
+                    const newAccessToken = refreshResponse.data.access;
+                    const newRefreshToken = refreshResponse.data.refresh || refreshToken;
+
+                    localStorage.setItem('lifeos_access_token', newAccessToken);
+                    localStorage.setItem('lifeos_refresh_token', newRefreshToken);
+                    localStorage.setItem('lifeos_token', newAccessToken);
+
+                    originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+                    return client(originalRequest);
+                } catch (refreshError) {
+                    localStorage.removeItem('lifeos_access_token');
+                    localStorage.removeItem('lifeos_refresh_token');
+                    localStorage.removeItem('lifeos_token');
+                }
+            }
+
             if (window.location.pathname !== '/login') {
                 window.location.href = '/login';
             }
         }
+
         return Promise.reject(error);
     }
 );

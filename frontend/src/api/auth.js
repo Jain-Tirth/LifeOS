@@ -2,8 +2,12 @@ import client from './client';
 
 export const login = async (email, password) => {
     const response = await client.post('/auth/login/', { email, password });
-    if (response.data.token) {
-        localStorage.setItem('lifeos_token', response.data.token);
+    if (response.data.access) {
+        localStorage.setItem('lifeos_access_token', response.data.access);
+        localStorage.setItem('lifeos_token', response.data.access);
+    }
+    if (response.data.refresh) {
+        localStorage.setItem('lifeos_refresh_token', response.data.refresh);
     }
     return response.data;
 };
@@ -21,6 +25,14 @@ export const register = async (email, password, firstName, lastName) => {
         localStorage.setItem('lifeos_token', response.data.token);
     }
 
+    if (response.data.access) {
+        localStorage.setItem('lifeos_access_token', response.data.access);
+        localStorage.setItem('lifeos_token', response.data.access);
+    }
+    if (response.data.refresh) {
+        localStorage.setItem('lifeos_refresh_token', response.data.refresh);
+    }
+
     return response.data;
 };
 
@@ -29,5 +41,7 @@ export const getProfile = async () => {
 };
 
 export const logout = () => {
+    localStorage.removeItem('lifeos_access_token');
+    localStorage.removeItem('lifeos_refresh_token');
     localStorage.removeItem('lifeos_token');
 };

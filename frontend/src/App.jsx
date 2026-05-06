@@ -11,8 +11,6 @@ import LandingPage from './pages/Landing/LandingPage';
 import Chat from './pages/Chat/Chat';
 import Productivity from './pages/Productivity/Productivity';
 import Wellness from './pages/Wellness/Wellness';
-import Study from './pages/Study/Study';
-import MealPlanner from './pages/MealPlanner/MealPlanner';
 import Habits from './pages/Habits/Habits';
 import './index.css';
 
@@ -58,16 +56,6 @@ function App() {
               <Route path="/wellness" element={
                 <ProtectedRoute>
                   <Wellness />
-                </ProtectedRoute>
-              } />
-              <Route path="/study" element={
-                <ProtectedRoute>
-                  <Study />
-                </ProtectedRoute>
-              } />
-              <Route path="/meals" element={
-                <ProtectedRoute>
-                  <MealPlanner />
                 </ProtectedRoute>
               } />
               <Route path="/habits" element={

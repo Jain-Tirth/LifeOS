@@ -4,18 +4,13 @@ import { motion } from 'framer-motion';
 import {
     Calendar,
     Heart,
-    BookOpen,
-    Utensils,
     TrendingUp,
     MessageSquare,
-    Clock,
     Loader2
 } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import BentoCard from '../../components/ui/BentoCard';
 import { getTasks } from '../../api/tasks';
-import { getMealPlans } from '../../api/meals';
-import { getStudySessions } from '../../api/study';
 import { getWellnessActivities } from '../../api/wellness';
 import { useAuth } from '../../context/AuthContext';
 
@@ -26,8 +21,6 @@ const Dashboard = () => {
     const [stats, setStats] = useState({
         productivity: { value: '—', label: 'Tasks' },
         wellness: { value: '—', label: 'Activities' },
-        study: { value: '—', label: 'Sessions' },
-        meal: { value: '—', label: 'Meals' },
     });
     const [recentTasks, setRecentTasks] = useState([]);
     const [taskChartData, setTaskChartData] = useState([]);
@@ -46,10 +39,8 @@ const Dashboard = () => {
             setLoading(true);
             try {
                 // Fetch all data in parallel
-                const [tasksRes, mealsRes, studyRes, wellnessRes] = await Promise.allSettled([
+                const [tasksRes, wellnessRes] = await Promise.allSettled([
                     getTasks({}),
-                    getMealPlans({}),
-                    getStudySessions(),
                     getWellnessActivities({}),
                 ]);
 
@@ -61,18 +52,6 @@ const Dashboard = () => {
                 const totalTasks = allTasks.length;
                 setRecentTasks(allTasks.filter(t => t.status !== 'completed').slice(0, 4));
 
-                // Meals
-                const allMeals = mealsRes.status === 'fulfilled'
-                    ? (mealsRes.value.data.results || mealsRes.value.data || [])
-                    : [];
-
-                // Study
-                const allStudy = studyRes.status === 'fulfilled'
-                    ? (studyRes.value.data.results || studyRes.value.data || [])
-                    : [];
-                const totalStudyMinutes = allStudy.reduce((sum, s) => sum + (s.duration || 0), 0);
-                const totalStudyHours = Math.floor(totalStudyMinutes / 60);
-
                 // Wellness
                 const allWellness = wellnessRes.status === 'fulfilled'
                     ? (wellnessRes.value.data.results || wellnessRes.value.data || [])
@@ -81,8 +60,6 @@ const Dashboard = () => {
                 setStats({
                     productivity: { value: `${completedTasks}/${totalTasks}`, label: 'Tasks Done' },
                     wellness: { value: String(allWellness.length), label: 'Activities' },
-                    study: { value: `${totalStudyHours}h`, label: 'Focused' },
-                    meal: { value: String(allMeals.length), label: 'Meals' },
                 });
 
                 // Build mini chart data
@@ -192,31 +169,6 @@ const Dashboard = () => {
                         </BentoCard>
 
                         {/* Study */}
-                        <BentoCard
-                            title="Study Buddy"
-                            value={stats.study.value}
-                            label={stats.study.label}
-                            icon={BookOpen}
-                            color="card-study"
-                            delay={0.2}
-                            onClick={() => navigate('/study')}
-                        >
-                            <TinyChart color="card-study" />
-                        </BentoCard>
-
-                        {/* Meal Planner */}
-                        <BentoCard
-                            title="Meal Planner"
-                            value={stats.meal.value}
-                            label={stats.meal.label}
-                            icon={Utensils}
-                            color="card-meal"
-                            delay={0.3}
-                            onClick={() => navigate('/meals')}
-                        >
-                            <TinyChart color="card-meal" />
-                        </BentoCard>
-
                         {/* Orchestrator Quick Access */}
                         <BentoCard
                             title="Orchestrator"
@@ -224,7 +176,7 @@ const Dashboard = () => {
                             label="Command Center"
                             icon={MessageSquare}
                             color="card-productivity"
-                            delay={0.4}
+                            delay={0.2}
                             onClick={() => navigate('/chat')}
                         >
                             <TinyChart color="card-productivity" />

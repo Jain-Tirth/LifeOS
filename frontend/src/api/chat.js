@@ -1,4 +1,4 @@
-import client from './client';
+import client, { apiBaseUrl } from './client';
 
 // Helper to get CSRF token from cookie
 function getCookie(name) {
@@ -44,7 +44,7 @@ export const streamChat = async ({ message, sessionId, onChunk, onAgentSelected,
             headers['X-CSRFToken'] = csrfToken;
         }
 
-        const response = await fetch('/api/chat/stream/', {
+        const response = await fetch(`${apiBaseUrl}/chat/stream/`, {
             method: 'POST',
             headers: headers,
             credentials: 'include', // Important for session auth
@@ -109,16 +109,8 @@ export const getSessionMessages = async (sessionId) => {
     return client.get(`/sessions/${sessionId}/messages/`);
 };
 
-export const saveMealPlan = async (mealPlanData) => {
-    return client.post('/meal-plans/', mealPlanData);
-};
-
 export const saveTask = async (taskData) => {
     return client.post('/tasks/', taskData);
-};
-
-export const saveStudySession = async (studySessionData) => {
-    return client.post('/study-sessions/', studySessionData);
 };
 
 export const saveWellnessActivity = async (activityData) => {

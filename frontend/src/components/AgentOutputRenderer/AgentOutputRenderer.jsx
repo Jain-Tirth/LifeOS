@@ -6,11 +6,8 @@
  * we detect the agent type and render purpose-built UI blocks.
  *
  * Supported schemas:
- *   - MealPlanRenderer      (meal_planner_agent)
- *   - TaskListRenderer      (productivity_agent)
- *   - StudyPlanRenderer     (study_agent)
- *   - WellnessRenderer      (wellness_agent)
- *   - HabitRenderer         (habit_coach_agent)
+ *   - ExecutionRenderer     (execution_agent)
+ *   - CommunicationRenderer (communication_agent)
  *   - GenericMarkdownRenderer (fallback for orchestrator / unknown agents)
  */
 import React from 'react';
@@ -210,7 +207,7 @@ export function TaskListRenderer({ content }) {
                             key={i}
                             className="flex items-start gap-2.5 p-2.5 bg-white/5 rounded-lg border border-white/5 hover:border-white/10 transition-colors group"
                         >
-                            <div className="w-5 h-5 rounded border border-white/20 group-hover:border-purple-400/40 flex-shrink-0 mt-0.5 transition-colors" />
+                            <div className="w-5 h-5 rounded border border-white/20 group-hover:border-purple-400/40 shrink-0 mt-0.5 transition-colors" />
                             <span className="text-sm text-white/80 leading-snug">{cleanTask(line)}</span>
                         </div>
                     ))}
@@ -419,6 +416,47 @@ export function CommunicationRenderer({ content }) {
     );
 }
 
+export function ExecutionRenderer({ content }) {
+    let parsedData = null;
+    try {
+        const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/i);
+        if (jsonMatch && jsonMatch[1]) {
+            parsedData = JSON.parse(jsonMatch[1]);
+        } else {
+            parsedData = JSON.parse(content);
+        }
+    } catch (e) {
+        parsedData = null;
+    }
+
+    const actions = Array.isArray(parsedData?.actions) ? parsedData.actions : [];
+
+    return (
+        <div className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+                <span className="text-[11px] px-2.5 py-1 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-300 font-medium capitalize">
+                    Execution
+                </span>
+            </div>
+
+            {actions.length > 0 ? (
+                <div className="space-y-2">
+                    {actions.map((action, index) => (
+                        <div key={index} className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-2">
+                            <div className="text-sm font-semibold text-white">{action.action}</div>
+                            <pre className="text-xs bg-black/20 p-2 rounded overflow-x-auto text-white/70">{JSON.stringify(action.data || action, null, 2)}</pre>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="prose prose-invert prose-sm max-w-none">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD}>{content}</ReactMarkdown>
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ─── Generic Markdown Fallback ────────────────────────────────────────────────
 export function GenericMarkdownRenderer({ content }) {
     return (
@@ -441,11 +479,11 @@ const AgentOutputRenderer = ({ content, agentName }) => {
     const key = detectAgentKey(agentName);
 
     switch (key) {
-        case 'meal_planner': return <MealPlanRenderer content={content} />;
-        case 'productivity': return <TaskListRenderer content={content} />;
-        case 'study': return <StudyPlanRenderer content={content} />;
-        case 'wellness': return <WellnessRenderer content={content} />;
-        case 'habit_coach': return <HabitRenderer content={content} />;
+        case 'execution': return <ExecutionRenderer content={content} />;
+        case 'insight':
+        case 'planning':
+        case 'memory':
+            return <GenericMarkdownRenderer content={content} />;
         case 'communication': return <CommunicationRenderer content={content} />;
         default: return <GenericMarkdownRenderer content={content} />;
     }
