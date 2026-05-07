@@ -141,6 +141,50 @@ Access the Django admin at `http://localhost:8000/admin/` with your superuser cr
 4. Enhance agent capabilities
 5. Add WebSocket support for real-time agent interactions
 
+## Google Cloud Deployment On A Tight Budget
+
+For a $5 credit budget, the lowest-cost path is:
+
+1. Backend on Cloud Run with `min-instances=0` so you only pay while requests are running.
+2. Frontend on Firebase Hosting so static assets stay in the free/very-low-cost path.
+3. Keep SQLite for the first deploy so you avoid Cloud SQL charges. This means the data is not durable across Cloud Run restarts or redeploys, which is acceptable for a demo but not for production data.
+
+### What is already set up for this
+
+- The frontend already calls the API with relative `/api` URLs, so it can sit on the same domain as the backend rewrite.
+- Django now has production-friendly static handling via WhiteNoise and container support via Gunicorn.
+
+### Backend deploy
+
+Use the root `Dockerfile` and deploy to Cloud Run:
+
+```bash
+gcloud run deploy lifeos-api \
+	--source . \
+	--region us-central1 \
+	--allow-unauthenticated \
+	--min-instances 0 \
+	--max-instances 1 \
+	--memory 512Mi \
+	--cpu 1 \
+	--set-env-vars DEBUG=False,ALLOWED_HOSTS=YOUR_CLOUD_RUN_HOST,GROQ_API_KEY=YOUR_KEY,DJANGO_SECRET_KEY=YOUR_SECRET,CSRF_TRUSTED_ORIGINS=https://YOUR_FIREBASE_DOMAIN
+```
+
+If you want the backend reachable only through Firebase Hosting, keep the Cloud Run service private and use a hosting rewrite. That keeps the public surface small and avoids extra traffic.
+
+If you use a Firebase custom domain, add that exact domain to `CSRF_TRUSTED_ORIGINS` as well.
+
+### Frontend deploy
+
+Build the Vite app and deploy the `frontend/dist` output to Firebase Hosting. Add a rewrite for `/api/**` to the Cloud Run service so the browser sees a single origin. That avoids CORS problems and keeps the setup simple.
+
+### Cost guardrails
+
+- Do not add Cloud SQL until you actually need persistent shared storage.
+- Keep `min-instances` at `0`.
+- Set `max-instances` to `1` for a personal demo if you want to cap surprise usage.
+- Shut the service down when you are not testing it.
+
 ## License
 
 MIT License
