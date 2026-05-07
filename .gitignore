@@ -25,16 +25,19 @@ db.sqlite3-journal
 *~
 
 # Environment
-*.env
+*.env*
 .env.local
 
 # OS
 .DS_Store
 Thumbs.db
-
+# Credentials of oauth
+credentials.json
 # for my own purposes
 *missing.txt
-
+# Deploy and it's related file
+deploy.*
+*.sh
 # Migrations (optional - uncomment if needed)
 # */migrations/*.py
 # !*/migrations/__init__.py
