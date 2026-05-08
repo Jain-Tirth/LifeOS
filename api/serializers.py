@@ -1,13 +1,13 @@
 from rest_framework import serializers
 from agents.models import (
     AgentSession,
-    Habit,
-    HabitLog,
-    MealPlan,
     Message,
-    StudySession,
+    MealPlan,
     Task,
+    StudySession,
     WellnessActivity,
+    Habit,
+    HabitLog
 )
 
 
@@ -23,6 +23,38 @@ class AgentSessionSerializer(serializers.ModelSerializer):
     class Meta:
         model = AgentSession
         fields = ['id', 'session_id', 'agent_type', 'created_at', 'updated_at', 'messages']
+
+
+class MealPlanSerializer(serializers.ModelSerializer):
+    """Serializer for meal plans with session_id support"""
+    session_id = serializers.CharField(write_only=True, required=False, allow_null=True)
+
+    class Meta:
+        model = MealPlan
+        fields = ['id', 'date', 'meal_type', 'meal_name', 'ingredients',
+                  'instructions', 'nutritional_info', 'preferences',
+                  'created_at', 'session_id', 'user', 'session']
+        read_only_fields = ['id', 'created_at', 'user', 'session']
+        extra_kwargs = {
+            'user': {'required': False},
+            'session': {'required': False},
+        }
+
+    def create(self, validated_data):
+        # Extract session_id if provided
+        session_id = validated_data.pop('session_id', None)
+
+        # Look up session by session_id (UUID string)
+        if session_id:
+            try:
+                session = AgentSession.objects.get(session_id=session_id)
+                validated_data['session'] = session
+            except AgentSession.DoesNotExist:
+                raise serializers.ValidationError({
+                    'session_id': f'Session with id {session_id} does not exist'
+                })
+
+        return super().create(validated_data)
 
 
 class TaskSerializer(serializers.ModelSerializer):
@@ -41,8 +73,10 @@ class TaskSerializer(serializers.ModelSerializer):
         }
 
     def create(self, validated_data):
+        # Extract session_id if provided
         session_id = validated_data.pop('session_id', None)
 
+        # Look up session by session_id (UUID string)
         if session_id:
             try:
                 session = AgentSession.objects.get(session_id=session_id)
@@ -55,40 +89,9 @@ class TaskSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
+        # Remove session_id from update if provided (shouldn't be changed)
         validated_data.pop('session_id', None)
         return super().update(instance, validated_data)
-
-
-class MealPlanSerializer(serializers.ModelSerializer):
-    """Serializer for meal plans with session_id support"""
-    session_id = serializers.CharField(write_only=True, required=False, allow_null=True)
-
-    class Meta:
-        model = MealPlan
-        fields = [
-            'id', 'date', 'meal_type', 'meal_name', 'ingredients',
-            'instructions', 'nutritional_info', 'preferences', 'created_at',
-            'session_id', 'user', 'session'
-        ]
-        read_only_fields = ['id', 'created_at', 'user', 'session']
-        extra_kwargs = {
-            'user': {'required': False},
-            'session': {'required': False},
-        }
-
-    def create(self, validated_data):
-        session_id = validated_data.pop('session_id', None)
-
-        if session_id:
-            try:
-                session = AgentSession.objects.get(session_id=session_id)
-                validated_data['session'] = session
-            except AgentSession.DoesNotExist:
-                raise serializers.ValidationError({
-                    'session_id': f'Session with id {session_id} does not exist'
-                })
-
-        return super().create(validated_data)
 
 
 class StudySessionSerializer(serializers.ModelSerializer):
@@ -97,10 +100,8 @@ class StudySessionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = StudySession
-        fields = [
-            'id', 'subject', 'topic', 'duration', 'notes', 'resources',
-            'created_at', 'session_id', 'user', 'session'
-        ]
+        fields = ['id', 'subject', 'topic', 'duration', 'notes',
+                  'resources', 'created_at', 'session_id', 'user', 'session']
         read_only_fields = ['id', 'created_at', 'user', 'session']
         extra_kwargs = {
             'user': {'required': False},
@@ -108,8 +109,10 @@ class StudySessionSerializer(serializers.ModelSerializer):
         }
 
     def create(self, validated_data):
+        # Extract session_id if provided
         session_id = validated_data.pop('session_id', None)
 
+        # Look up session by session_id (UUID string)
         if session_id:
             try:
                 session = AgentSession.objects.get(session_id=session_id)
@@ -137,8 +140,10 @@ class WellnessActivitySerializer(serializers.ModelSerializer):
         }
 
     def create(self, validated_data):
+        # Extract session_id if provided
         session_id = validated_data.pop('session_id', None)
 
+        # Look up session by session_id (UUID string)
         if session_id:
             try:
                 session = AgentSession.objects.get(session_id=session_id)
