@@ -45,3 +45,11 @@ export const logout = () => {
     localStorage.removeItem('lifeos_refresh_token');
     localStorage.removeItem('lifeos_token');
 };
+
+export const requestPasswordReset = async (email) => {
+    return client.post('/auth/password-reset/', { email });
+};
+
+export const resetPassword = async (uid, token, password) => {
+    return client.post('/auth/password-reset-confirm/', { uid, token, password });
+};
