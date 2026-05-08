@@ -5,8 +5,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth import authenticate
 from django.middleware.csrf import get_token
 from django.views.decorators.csrf import ensure_csrf_cookie
-from rest_framework_simplejwt.serializers import TokenRefreshSerializer
-from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
+from rest_framework_simplejwt.tokens import AccessToken
 from agents.models import User, UserProfile
 from agents.services.event_bus import audit_logger
 from .auth_serializers import (
@@ -47,8 +46,7 @@ def register(request):
         # Ensure profile exists (signal should create it, but be safe)
         UserProfile.objects.get_or_create(user=user)
         
-        # Generate both access and refresh tokens for persistent sessions
-        refresh = RefreshToken.for_user(user)
+        token = AccessToken.for_user(user)
         
         audit_logger.log_authentication(
             action='User Registration',
@@ -66,8 +64,7 @@ def register(request):
         return Response({
             'message': 'User registered successfully',
             'user': UserSerializer(user).data,
-            'access': str(refresh.access_token),
-            'refresh': str(refresh)
+            'token': str(token)
         }, status=status.HTTP_201_CREATED)
     
     audit_logger.log_authentication(
@@ -131,8 +128,7 @@ def login(request):
         # Ensure profile exists for existing users
         UserProfile.objects.get_or_create(user=user)
         
-        # Generate both access and refresh tokens for persistent sessions
-        refresh = RefreshToken.for_user(user)
+        token = AccessToken.for_user(user)
         
         audit_logger.log_authentication(
             action='User Login',
@@ -146,8 +142,7 @@ def login(request):
         return Response({
             'message': 'Login successful',
             'user': UserSerializer(user).data,
-            'access': str(refresh.access_token),
-            'refresh': str(refresh)
+            'token': str(token)
         }, status=status.HTTP_200_OK)
         
     except User.DoesNotExist:
@@ -165,34 +160,13 @@ def login(request):
         }, status=status.HTTP_401_UNAUTHORIZED)
 
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def logout(request):
-    """Logout endpoint for clients that want a consistent API response."""
-    return Response({
-        'message': 'Logout successful'
-    }, status=status.HTTP_200_OK)
-
-
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def refresh_token(request):
-    """Refresh a JWT access token using a valid refresh token."""
-    serializer = TokenRefreshSerializer(data=request.data)
-
-    if serializer.is_valid():
-        return Response(serializer.validated_data, status=status.HTTP_200_OK)
-
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_user_profile(request):
     """Get current user profile including preferences."""
     UserProfile.objects.get_or_create(user=request.user)
     serializer = UserSerializer(request.user)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 @api_view(['PUT', 'PATCH'])

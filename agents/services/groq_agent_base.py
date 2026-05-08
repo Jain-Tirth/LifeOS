@@ -6,7 +6,6 @@ import os
 import json
 import logging
 from typing import AsyncGenerator, Optional, Dict, Any, List
-import httpx
 from groq import Groq, AsyncGroq
 from django.conf import settings
 from dotenv import load_dotenv
@@ -41,13 +40,12 @@ class GroqAgentRunner:
         system_instruction: str,
         model: str = 'llama-3.3-70b',
         temperature: float = 0.7,
-        max_tokens: int = 8000,
-        strict_formatting: bool = True,
+        max_tokens: int = 8000
     ):
         self.agent_name = agent_name
         
         # Append formatting guidelines
-        strict_formatting_block = """
+        strict_formatting = """
         
 VISUAL STYLING GUIDELINES (STRICT COMPLIANCE REQUIRED):
 - Headers: Always start your response with a clear ## Header.
@@ -58,7 +56,7 @@ VISUAL STYLING GUIDELINES (STRICT COMPLIANCE REQUIRED):
 - Tables: If comparing two or more things, use a Markdown table.
 - Task: Provide well-structured, professional, and visually scannable responses.
 """
-        self.system_instruction = system_instruction + (strict_formatting_block if strict_formatting else "")
+        self.system_instruction = system_instruction + strict_formatting
         self.temperature = temperature
         self.max_tokens = max_tokens
         
@@ -67,10 +65,8 @@ VISUAL STYLING GUIDELINES (STRICT COMPLIANCE REQUIRED):
         
         # Initialize Groq clients
         api_key = self._get_api_key()
-        self._http_client = httpx.Client(timeout=60.0)
-        self._async_http_client = httpx.AsyncClient(timeout=60.0)
-        self.client = Groq(api_key=api_key, http_client=self._http_client)
-        self.async_client = AsyncGroq(api_key=api_key, http_client=self._async_http_client)
+        self.client = Groq(api_key=api_key)
+        self.async_client = AsyncGroq(api_key=api_key)
     
     def _get_api_key(self) -> str:
         """Get Groq API key from settings or environment"""

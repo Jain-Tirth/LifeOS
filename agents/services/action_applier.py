@@ -95,14 +95,10 @@ class ActionApplier:
     # now in action_schema.REGISTERED_ACTIONS.
     ACTION_HANDLERS = {
         'create_task': 'task',
-        'update_task': 'task',
         'create_meal_plan': 'meal',
         'create_study_session': 'study',
         'create_wellness_activity': 'wellness',
         'create_habit': 'habit',
-        'create_event': 'calendar',
-        'update_event': 'calendar',
-        'update_calendar_event': 'calendar',
     }
 
     def extract_actions(self, response_text: str) -> List[Dict[str, Any]]:
@@ -221,8 +217,6 @@ class ActionApplier:
             try:
                 if action_name == 'create_task':
                     obj = await sync_to_async(save_task)(data=validated_data, session=session, user=user)
-                elif action_name == 'update_task':
-                    obj = await sync_to_async(save_task)(data=validated_data, session=session, user=user)
                 elif action_name == 'create_meal_plan':
                     obj = await sync_to_async(save_meal_plan)(data=validated_data, session=session, user=user)
                 elif action_name == 'create_study_session':
@@ -230,11 +224,6 @@ class ActionApplier:
                 elif action_name == 'create_wellness_activity':
                     obj = await sync_to_async(save_wellness_activity)(data=validated_data, session=session, user=user)
                 elif action_name == 'create_calendar_event':
-                    obj = await sync_to_async(save_calendar_event)(data=validated_data, session=session, user=user)
-                    if obj:
-                        from .google_integration import google_service
-                        await google_service.sync_calendar_event(obj)
-                elif action_name in ('create_event', 'update_event', 'update_calendar_event'):
                     obj = await sync_to_async(save_calendar_event)(data=validated_data, session=session, user=user)
                     if obj:
                         from .google_integration import google_service

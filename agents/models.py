@@ -66,7 +66,7 @@ class UserProfile(models.Model):
     """
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     
-    # Temporal & Scheduling
+    # Temporal
     timezone = models.CharField(
         max_length=50, default='Asia/Kolkata',
         help_text="User's timezone for scheduling and reminders"
@@ -85,7 +85,7 @@ class UserProfile(models.Model):
         help_text="e.g. {'start': '09:00', 'end': '18:00', 'days': ['Mon','Tue','Wed','Thu','Fri']}"
     )
     
-    # Wellness & Health
+    # Wellness (Wellness Agent)
     fitness_level = models.CharField(
         max_length=20, 
         choices=[
@@ -97,7 +97,19 @@ class UserProfile(models.Model):
     )
     health_conditions = models.JSONField(
         default=list, blank=True,
-        help_text="List of health conditions agents should be aware of"
+        help_text="List of conditions agents should be aware of"
+    )
+
+    # Study (Study Agent)
+    learning_style = models.CharField(
+        max_length=20,
+        choices=[
+            ('visual', 'Visual'),
+            ('auditory', 'Auditory'),
+            ('reading', 'Reading/Writing'),
+            ('kinesthetic', 'Kinesthetic'),
+        ],
+        default='visual'
     )
     
     # Goals — the big picture that ties all agents together
@@ -130,17 +142,18 @@ class UserProfile(models.Model):
             'about_me': self.about_me,
         }
         
-        if agent_type in ('execution_agent', 'planning_agent', 'communication_agent', None):
+        if agent_type in ('meal_planner_agent', None):
+            context['dietary_preferences'] = self.dietary_preferences
+
+        if agent_type in ('productivity_agent', None):
             context['work_hours'] = self.work_hours
-            context['timezone'] = self.timezone
 
-        if agent_type in ('execution_agent', 'insight_agent', 'planning_agent', 'memory_agent', 'communication_agent', None):
-            context['goals'] = self.goals
-            context['about_me'] = self.about_me
-
-        if agent_type in ('execution_agent', 'insight_agent', 'planning_agent', 'memory_agent', 'communication_agent', None):
+        if agent_type in ('wellness_agent', None):
             context['fitness_level'] = self.fitness_level
             context['health_conditions'] = self.health_conditions
+
+        if agent_type in ('study_agent', None):
+            context['learning_style'] = self.learning_style
         
         return context
 
@@ -149,11 +162,11 @@ class AgentSession(models.Model):
     """Store agent conversation sessions"""
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     agent_type = models.CharField(max_length=50, choices=[
-        ('execution_agent', 'Execution Agent'),
-        ('insight_agent', 'Insight Agent'),
-        ('planning_agent', 'Planning Agent'),
-        ('memory_agent', 'Memory Agent'),
-        ('communication_agent', 'Communication Agent'),
+        ('meal_planner', 'Meal Planner'),
+        ('productivity', 'Productivity Agent'),
+        ('study_buddy', 'Study Buddy'),
+        ('wellness', 'Wellness Agent'),
+        ('habit_coach', 'Habit Coach'),
         ('orchestrator', 'Orchestrator'),
     ])
     session_id = models.CharField(max_length=255, unique=True)
@@ -483,85 +496,4 @@ class HabitLog(models.Model):
     def __str__(self):
         status = '✅' if self.completed else '⬜'
         return f"{status} {self.habit.name} — {self.date}"
-
-
-class CalendarEvent(models.Model):
-    """Store calendar events managed by agents (e.g. Google Calendar sync)"""
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='calendar_events')
-    session = models.ForeignKey(AgentSession, on_delete=models.SET_NULL, null=True, blank=True)
-    title = models.CharField(max_length=200)
-    description = models.TextField(null=True, blank=True)
-    start_time = models.DateTimeField()
-    end_time = models.DateTimeField()
-    location = models.CharField(max_length=255, null=True, blank=True)
-    attendees = models.JSONField(default=list, blank=True)
-    event_id = models.CharField(max_length=255, null=True, blank=True, help_text="External calendar event ID")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ['start_time']
-
-    def __str__(self):
-        return f"{self.title} at {self.start_time}"
-
-
-class EmailMessage(models.Model):
-    """Store drafted or parsed emails managed by agents (e.g. Gmail sync)"""
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='email_messages', null=True, blank=True)
-    session = models.ForeignKey(AgentSession, on_delete=models.SET_NULL, null=True, blank=True)
-    subject = models.CharField(max_length=255)
-    body = models.TextField()
-    to_address = models.CharField(max_length=255)
-    from_address = models.CharField(max_length=255, null=True, blank=True)
-    status = models.CharField(max_length=20, choices=[
-        ('draft', 'Draft'),
-        ('sent', 'Sent'),
-        ('received', 'Received'),
-        ('archived', 'Archived')
-    ], default='draft')
-    message_id = models.CharField(max_length=255, null=True, blank=True, help_text="External email ID")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ['-created_at']
-
-    def __str__(self):
-        return f"{self.subject} ({self.status})"
-
-
-class GoogleToken(models.Model):
-    """
-    Store per-user Google OAuth credentials in the database.
-    Replaces single-file token.json with multi-user DB-backed storage.
-    """
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='google_token')
-    access_token = models.TextField(help_text="Google OAuth access token")
-    refresh_token = models.TextField(null=True, blank=True, help_text="Google OAuth refresh token")
-    token_uri = models.TextField(help_text="Token endpoint URI (usually https://oauth2.googleapis.com/token)")
-    client_id = models.TextField(help_text="OAuth client ID from credentials.json")
-    client_secret = models.TextField(help_text="OAuth client secret from credentials.json")
-    scopes = models.TextField(help_text="Comma-separated scopes granted")
-    expiry = models.DateTimeField(null=True, blank=True, help_text="When access_token expires")
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name_plural = 'Google Tokens'
-        indexes = [
-            models.Index(fields=['user']),
-        ]
-
-    def __str__(self):
-        return f"GoogleToken for {self.user.email}"
-
-    @property
-    def is_expired(self) -> bool:
-        """Check if the access token has expired"""
-        if self.expiry is None:
-            return False
-        from django.utils import timezone
-        return self.expiry <= timezone.now()
-
 

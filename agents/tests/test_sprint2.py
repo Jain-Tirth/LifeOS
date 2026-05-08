@@ -169,15 +169,10 @@ class ActionSchemaRegistrationTests(SimpleTestCase):
     def test_all_expected_actions_registered(self):
         expected = {
             "create_task",
-            "update_task",
             "create_meal_plan",
             "create_study_session",
             "create_wellness_activity",
             "create_habit",
-            "create_calendar_event",
-            "create_event",
-            "update_calendar_event",
-            "update_event",
         }
         self.assertEqual(REGISTERED_ACTIONS, expected)
 
