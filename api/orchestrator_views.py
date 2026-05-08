@@ -23,9 +23,10 @@ logger = logging.getLogger(__name__)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @throttle_classes([AgentMessageThrottle, BurstThrottle])
-def chat(request):
+async def chat(request):
     """
     Send a message to the orchestrator for intelligent agent routing
+    WITHOUT blocking thread pool
     """
     serializer = ChatMessageSerializer(data=request.data)
     
@@ -40,7 +41,7 @@ def chat(request):
     session = None
     if session_id:
         try:
-            session = AgentSession.objects.get(
+            session = await AgentSession.objects.aget(
                 session_id=session_id,
                 user=request.user
             )
@@ -49,22 +50,14 @@ def chat(request):
                 'error': 'Session not found or does not belong to user'
             }, status=status.HTTP_404_NOT_FOUND)
     
-    # Process message through orchestrator
+    # Call async orchestrator directly (no wrapper)
     try:
-        # Note: In a real Django view, we should use a wrapper to run the async orchestrator
-        # or use an async view (Django 3.1+)
-        import asyncio
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        result = loop.run_until_complete(
-            orchestrator.process_message(
-                message=message,
-                user=request.user,
-                session=session,
-                force_agent=force_agent
-            )
+        result = await orchestrator.process_message(
+            message=message,
+            user=request.user,
+            session=session,
+            force_agent=force_agent
         )
-        loop.close()
         
         response_serializer = ChatResponseSerializer(result)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
@@ -81,7 +74,7 @@ def chat(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @throttle_classes([AgentMessageThrottle, BurstThrottle])
-def chat_stream(request):
+async def chat_stream(request):
     """
     Stream agent responses in real-time using Server-Sent Events (SSE)
     """
@@ -98,12 +91,12 @@ def chat_stream(request):
     session = None
     if session_id:
         try:
-            session = AgentSession.objects.get(
+            session = await AgentSession.objects.aget(
                 session_id=session_id,
                 user=request.user
             )
         except AgentSession.DoesNotExist:
-            def error_stream():
+            async def error_stream():
                 yield f"data: {json.dumps({'error': 'Session not found'})}\n\n"
             return StreamingHttpResponse(
                 error_stream(),
@@ -111,69 +104,23 @@ def chat_stream(request):
                 status=404
             )
     
-    def event_stream():
-        """Generator function for SSE streaming"""
-        import queue
-        import threading
-        
-        q = queue.Queue()
-        exception_holder = {'exception': None}
-        
-        def run_async_gen():
-            """Run async generator in thread"""
-            # Create a new event loop for the background thread
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-            async def collect():
-                try:
-                    async for chunk in orchestrator.process_message_stream(
-                        message=message,
-                        user=request.user,
-                        session=session,
-                        force_agent=force_agent
-                    ):
-                        q.put(('data', chunk))
-                except Exception as e:
-                    import traceback
-                    print(f"Streaming error in thread: {e}")
-                    traceback.print_exc()
-                    exception_holder['exception'] = e
-                    q.put(('error', str(e)))
-                finally:
-                    q.put(('done', None))
-            
-            try:
-                loop.run_until_complete(collect())
-            finally:
-                loop.close()
-        
-        # Start async generator in background thread
-        thread = threading.Thread(target=run_async_gen, daemon=True)
-        thread.start()
-        
-        # Yield chunks as they arrive from queue
+    async def event_stream():
+        """Async generator function for SSE streaming"""
         try:
-            while True:
-                # Non-blocking get with timeout to allow checking if done
-                try:
-                    item = q.get(timeout=60)  # 60 second timeout
-                except queue.Empty:
-                    yield f"data: {{\"type\": \"error\", \"error\": \"Timeout waiting for response\"}}\n\n"
-                    break
-                
-                msg_type, data = item
-                
-                if msg_type == 'data':
-                    yield f"data: {json.dumps(data)}\n\n"
-                elif msg_type == 'error':
-                    yield f"data: {json.dumps({'error': data, 'type': 'error'})}\n\n"
-                    break
-                elif msg_type == 'done':
-                    yield "data: {\"type\": \"done\"}\n\n"
-                    break
+            async for chunk in orchestrator.process_message_stream(
+                message=message,
+                user=request.user,
+                session=session,
+                force_agent=force_agent
+            ):
+                yield f"data: {json.dumps(chunk)}\n\n"
+        except Exception as e:
+            import traceback
+            print(f"Streaming error: {e}")
+            traceback.print_exc()
+            yield f"data: {json.dumps({'error': str(e), 'type': 'error'})}\n\n"
         finally:
-            thread.join(timeout=1)
+            yield "data: {\"type\": \"done\"}\n\n"
     
     response = StreamingHttpResponse(
         event_stream(),

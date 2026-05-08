@@ -23,6 +23,7 @@ from .serializers import (
     HabitSerializer,
     HabitLogSerializer
 )
+from .base_viewsets import UserOwnedViewSet
 from agents.services.orchestrator import orchestrator
 from asgiref.sync import async_to_sync
 import uuid
@@ -96,19 +97,14 @@ class MessageViewSet(viewsets.ModelViewSet):
         return Message.objects.filter(session__user=self.request.user).order_by('created_at')
 
 
-class MealPlanViewSet(viewsets.ModelViewSet):
+class MealPlanViewSet(UserOwnedViewSet):
     """ViewSet for managing meal plans with enhanced save-to-agent logic"""
     queryset = MealPlan.objects.all()
     serializer_class = MealPlanSerializer
-    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         """Filter meal plans by user and query parameters"""
         queryset = super().get_queryset()
-
-        # Filter by current user if authenticated
-        if self.request.user.is_authenticated:
-            queryset = queryset.filter(user=self.request.user)
 
         # Support query parameters for filtering
         date = self.request.query_params.get('date')
@@ -124,20 +120,6 @@ class MealPlanViewSet(viewsets.ModelViewSet):
 
         return queryset.order_by('-created_at')
 
-    def perform_create(self, serializer):
-        """Save meal plan with automatic user assignment"""
-        try:
-            # Automatically assign current user if authenticated
-            if self.request.user.is_authenticated:
-                serializer.save(user=self.request.user)
-            else:
-                serializer.save()
-
-            logger.info(f"Meal plan created successfully from agent")
-        except Exception as e:
-            logger.error(f"Error creating meal plan: {str(e)}")
-            raise
-
     def create(self, request, *args, **kwargs):
         """Override create to add custom response with success message"""
         serializer = self.get_serializer(data=request.data)
@@ -152,19 +134,14 @@ class MealPlanViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_201_CREATED, headers=headers)
 
 
-class TaskViewSet(viewsets.ModelViewSet):
+class TaskViewSet(UserOwnedViewSet):
     """ViewSet for managing tasks with enhanced save-to-agent logic"""
     queryset = Task.objects.all()
     serializer_class = TaskSerializer
-    permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         """Filter tasks by user and query parameters"""
         queryset = super().get_queryset()
-        
-        # Filter by current user if authenticated
-        if self.request.user.is_authenticated:
-            queryset = queryset.filter(user=self.request.user)
         
         # Support query parameters for filtering
         status_param = self.request.query_params.get('status')
@@ -179,20 +156,6 @@ class TaskViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(session__session_id=session_id)
         
         return queryset.order_by('-priority', 'due_date', '-created_at')
-    
-    def perform_create(self, serializer):
-        """Save task with automatic user assignment"""
-        try:
-            # Automatically assign current user if authenticated
-            if self.request.user.is_authenticated:
-                serializer.save(user=self.request.user)
-            else:
-                serializer.save()
-            
-            logger.info(f"Task created successfully from agent")
-        except Exception as e:
-            logger.error(f"Error creating task: {str(e)}")
-            raise
     
     def create(self, request, *args, **kwargs):
         """Override create to add custom response with success message"""
@@ -217,19 +180,14 @@ class TaskViewSet(viewsets.ModelViewSet):
             raise
 
 
-class StudySessionViewSet(viewsets.ModelViewSet):
+class StudySessionViewSet(UserOwnedViewSet):
     """ViewSet for managing study sessions with enhanced save-to-agent logic"""
     queryset = StudySession.objects.all()
     serializer_class = StudySessionSerializer
-    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         """Filter study sessions by user and query parameters"""
         queryset = super().get_queryset()
-
-        # Filter by current user if authenticated
-        if self.request.user.is_authenticated:
-            queryset = queryset.filter(user=self.request.user)
 
         # Support query parameters for filtering
         subject = self.request.query_params.get('subject')
@@ -241,20 +199,6 @@ class StudySessionViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(session__session_id=session_id)
 
         return queryset.order_by('-created_at')
-
-    def perform_create(self, serializer):
-        """Save study session with automatic user assignment"""
-        try:
-            # Automatically assign current user if authenticated
-            if self.request.user.is_authenticated:
-                serializer.save(user=self.request.user)
-            else:
-                serializer.save()
-
-            logger.info(f"Study session created successfully from agent")
-        except Exception as e:
-            logger.error(f"Error creating study session: {str(e)}")
-            raise
 
     def create(self, request, *args, **kwargs):
         """Override create to add custom response with success message"""
@@ -270,19 +214,14 @@ class StudySessionViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_201_CREATED, headers=headers)
 
 
-class WellnessActivityViewSet(viewsets.ModelViewSet):
+class WellnessActivityViewSet(UserOwnedViewSet):
     """ViewSet for managing wellness activities with enhanced save-to-agent logic"""
     queryset = WellnessActivity.objects.all()
     serializer_class = WellnessActivitySerializer
-    permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         """Filter wellness activities by user and query parameters"""
         queryset = super().get_queryset()
-        
-        # Filter by current user if authenticated
-        if self.request.user.is_authenticated:
-            queryset = queryset.filter(user=self.request.user)
         
         # Support query parameters for filtering
         activity_type = self.request.query_params.get('activity_type')
@@ -300,20 +239,6 @@ class WellnessActivityViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(recorded_at__lte=end_date)
         
         return queryset.order_by('-recorded_at')
-    
-    def perform_create(self, serializer):
-        """Save wellness activity with automatic user assignment"""
-        try:
-            # Automatically assign current user if authenticated
-            if self.request.user.is_authenticated:
-                serializer.save(user=self.request.user)
-            else:
-                serializer.save()
-            
-            logger.info(f"Wellness activity created successfully from agent")
-        except Exception as e:
-            logger.error(f"Error creating wellness activity: {str(e)}")
-            raise
     
     def create(self, request, *args, **kwargs):
         """Override create to add custom response with success message"""

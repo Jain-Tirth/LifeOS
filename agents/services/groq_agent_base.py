@@ -6,10 +6,10 @@ import os
 import json
 import logging
 from typing import AsyncGenerator, Optional, Dict, Any, List
-from groq import Groq, AsyncGroq
 from django.conf import settings
 from dotenv import load_dotenv
 from asgiref.sync import sync_to_async
+from .groq_client import GroqClientFactory
 
 load_dotenv()
 
@@ -30,9 +30,6 @@ class GroqAgentRunner:
         'mixtral-8x7b': 'mixtral-8x7b-32768',
         'gemma2-9b': 'gemma2-9b-it',
     }
-    
-    # How many past messages to load from DB for context
-    HISTORY_WINDOW = 20
     
     def __init__(
         self, 
@@ -64,25 +61,16 @@ VISUAL STYLING GUIDELINES (STRICT COMPLIANCE REQUIRED):
         self.model = self.AVAILABLE_MODELS.get(model, self.AVAILABLE_MODELS['llama-3.3-70b'])
         
         # Initialize Groq clients
-        api_key = self._get_api_key()
-        self.client = Groq(api_key=api_key)
-        self.async_client = AsyncGroq(api_key=api_key)
-    
-    def _get_api_key(self) -> str:
-        """Get Groq API key from settings or environment"""
-        api_key = getattr(settings, 'GROQ_API_KEY', None) or os.getenv('GROQ_API_KEY')
-        if not api_key:
-            raise ValueError(
-                "GROQ_API_KEY not found. Get one free at https://console.groq.com/keys"
-            )
-        return api_key
+        self.client = GroqClientFactory.get_client()
+        self.async_client = GroqClientFactory.get_async_client()
     
     async def _load_history_from_db(self, session_id: str) -> List[Dict[str, str]]:
         """
-        Load conversation history from DB instead of in-memory dict.
-        This means history survives server restarts.
+        Load conversation history from DB with smart truncation to fit
+        within token context limits, keeping system message and most recent.
         """
         from agents.models import Message, AgentSession
+        import tiktoken
         
         try:
             session = await sync_to_async(
@@ -92,23 +80,48 @@ VISUAL STYLING GUIDELINES (STRICT COMPLIANCE REQUIRED):
             if not session:
                 return []
             
-            messages = await sync_to_async(
-                lambda: list(
-                    session.messages.order_by('-created_at')[:self.HISTORY_WINDOW]
-                )
+            # Load ALL messages (no arbitrary window limit)
+            all_messages = await sync_to_async(
+                lambda: list(session.messages.order_by('created_at'))
             )()
             
-            # Reverse to chronological order
-            messages.reverse()
-            
+            # Convert to OpenAI format
             history = []
-            for msg in messages:
+            for msg in all_messages:
                 role = 'assistant' if msg.role == 'agent' else msg.role
                 if role in ('user', 'assistant'):
                     history.append({
                         'role': role,
                         'content': msg.content
                     })
+
+            if not history:
+                return []
+
+            # Count tokens and truncate if necessary
+            # We use cl100k_base which is a good proxy for most models
+            try:
+                enc = tiktoken.get_encoding("cl100k_base")
+            except Exception:
+                # Fallback to cl100k_base if model not found
+                enc = tiktoken.get_encoding("cl100k_base")
+
+            MAX_TOKENS = 7000  # Leave 1k for response
+
+            total_tokens = sum(len(enc.encode(h['content'])) for h in history)
+
+            if total_tokens > MAX_TOKENS:
+                # Keep last N messages
+                keep_recent = []
+                token_count = 0
+                for msg in reversed(history):
+                    msg_tokens = len(enc.encode(msg['content']))
+                    if token_count + msg_tokens > MAX_TOKENS - 500:
+                        break
+                    keep_recent.insert(0, msg)
+                    token_count += msg_tokens
+
+                history = keep_recent
             
             return history
             

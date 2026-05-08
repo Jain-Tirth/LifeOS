@@ -21,6 +21,7 @@ from .intent_classifier import intent_classifier
 from .context_manager import ContextManager
 from .action_applier import action_applier
 from .context_validator import context_validator
+from .context_cache import UserContextCache
 from asgiref.sync import sync_to_async
 import logging
 import uuid
@@ -48,24 +49,10 @@ class EnhancedOrchestrator:
     
     async def _get_user_context(self, user: User, agent_type: str = None) -> Dict[str, Any]:
         """
-        Load user profile and build agent-specific context.
-        This is what makes agents actually personal.
+        Load user profile and build agent-specific context using Redis cache.
         """
         try:
-            profile = await sync_to_async(
-                lambda: UserProfile.objects.filter(user=user).first()
-            )()
-            
-            if profile:
-                return await sync_to_async(
-                    lambda: profile.get_agent_context(agent_type)
-                )()
-            
-            # No profile yet — return minimal context
-            return {
-                'name': await sync_to_async(user.get_full_name)(),
-                'timezone': 'Asia/Kolkata',
-            }
+            return await UserContextCache.get_context(user, agent_type)
         except Exception as e:
             logger.warning(f"Failed to load user context: {e}")
             return {}

@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 
 class UserManager(BaseUserManager):
@@ -506,3 +508,12 @@ class HabitLog(models.Model):
         status = '✅' if self.completed else '⬜'
         return f"{status} {self.habit.name} — {self.date}"
 
+
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from agents.services.context_cache import UserContextCache
+
+@receiver(post_save, sender=UserProfile)
+def invalidate_context_cache(sender, instance, **kwargs):
+    if hasattr(instance, 'user') and instance.user:
+        UserContextCache.invalidate(instance.user.id)
