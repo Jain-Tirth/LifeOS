@@ -5,9 +5,9 @@ from rest_framework.permissions import IsAuthenticated
 from agents.models import (
     AgentSession, 
     Message, 
-    MealPlan, 
+    MealPlan,
     Task, 
-    StudySession, 
+    StudySession,
     WellnessActivity,
     Habit,
     HabitLog
@@ -100,29 +100,29 @@ class MealPlanViewSet(viewsets.ModelViewSet):
     queryset = MealPlan.objects.all()
     serializer_class = MealPlanSerializer
     permission_classes = [IsAuthenticated]
-    
+
     def get_queryset(self):
         """Filter meal plans by user and query parameters"""
         queryset = super().get_queryset()
-        
+
         # Filter by current user if authenticated
         if self.request.user.is_authenticated:
             queryset = queryset.filter(user=self.request.user)
-        
+
         # Support query parameters for filtering
         date = self.request.query_params.get('date')
         meal_type = self.request.query_params.get('meal_type')
         session_id = self.request.query_params.get('session_id')
-        
+
         if date:
             queryset = queryset.filter(date=date)
         if meal_type:
             queryset = queryset.filter(meal_type=meal_type)
         if session_id:
             queryset = queryset.filter(session__session_id=session_id)
-        
+
         return queryset.order_by('-created_at')
-    
+
     def perform_create(self, serializer):
         """Save meal plan with automatic user assignment"""
         try:
@@ -131,19 +131,19 @@ class MealPlanViewSet(viewsets.ModelViewSet):
                 serializer.save(user=self.request.user)
             else:
                 serializer.save()
-            
+
             logger.info(f"Meal plan created successfully from agent")
         except Exception as e:
             logger.error(f"Error creating meal plan: {str(e)}")
             raise
-    
+
     def create(self, request, *args, **kwargs):
         """Override create to add custom response with success message"""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
-        
+
         return Response({
             'success': True,
             'message': 'Meal plan saved successfully',
@@ -221,26 +221,26 @@ class StudySessionViewSet(viewsets.ModelViewSet):
     queryset = StudySession.objects.all()
     serializer_class = StudySessionSerializer
     permission_classes = [IsAuthenticated]
-    
+
     def get_queryset(self):
         """Filter study sessions by user and query parameters"""
         queryset = super().get_queryset()
-        
+
         # Filter by current user if authenticated
         if self.request.user.is_authenticated:
             queryset = queryset.filter(user=self.request.user)
-        
+
         # Support query parameters for filtering
         subject = self.request.query_params.get('subject')
         session_id = self.request.query_params.get('session_id')
-        
+
         if subject:
             queryset = queryset.filter(subject__icontains=subject)
         if session_id:
             queryset = queryset.filter(session__session_id=session_id)
-        
+
         return queryset.order_by('-created_at')
-    
+
     def perform_create(self, serializer):
         """Save study session with automatic user assignment"""
         try:
@@ -249,19 +249,19 @@ class StudySessionViewSet(viewsets.ModelViewSet):
                 serializer.save(user=self.request.user)
             else:
                 serializer.save()
-            
+
             logger.info(f"Study session created successfully from agent")
         except Exception as e:
             logger.error(f"Error creating study session: {str(e)}")
             raise
-    
+
     def create(self, request, *args, **kwargs):
         """Override create to add custom response with success message"""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
-        
+
         return Response({
             'success': True,
             'message': 'Study session saved successfully',

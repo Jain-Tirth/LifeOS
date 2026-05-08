@@ -32,7 +32,7 @@ SCOPES = [
 ]
 
 class GoogleIntegration:
-    
+
     def __init__(self):
         self.creds = None
         if GOOGLE_LIBS_INSTALLED:
@@ -62,13 +62,13 @@ class GoogleIntegration:
                     self.creds = None
             
             if not self.creds and os.path.exists(creds_path):
-                # Note: In a production web environment, InstalledAppFlow (which opens a browser) 
+                # Note: In a production web environment, InstalledAppFlow (which opens a browser)
                 # should be replaced with a proper Web OAuth flow using redirect URIs.
                 logger.info("Initiating Google OAuth flow...")
                 try:
                     flow = InstalledAppFlow.from_client_secrets_file(creds_path, SCOPES)
                     self.creds = flow.run_local_server(port=0)
-                    
+
                     # Save the credentials for the next run
                     with open(token_path, 'w') as token:
                         token.write(self.creds.to_json())
@@ -83,10 +83,10 @@ class GoogleIntegration:
         if not self.creds:
             logger.error("Cannot sync calendar: Google API not authenticated.")
             return None
-            
+
         try:
             service = build('calendar', 'v3', credentials=self.creds)
-            
+
             body = {
                 'summary': event.title,
                 'description': event.description,
@@ -99,17 +99,17 @@ class GoogleIntegration:
                     'timeZone': 'UTC',
                 },
             }
-            
+
             created_event = service.events().insert(calendarId='primary', body=body).execute()
             event_id = created_event.get('id')
-            
+
             # Update local record with external ID
             event.event_id = event_id
             event.save(update_fields=['event_id'])
-            
+
             logger.info(f"Successfully synced event '{event.title}' to Google Calendar (ID: {event_id})")
             return event_id
-            
+
         except Exception as e:
             logger.error(f"Failed to sync calendar event: {e}", exc_info=True)
             return None

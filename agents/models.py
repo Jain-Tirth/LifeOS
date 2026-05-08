@@ -74,6 +74,7 @@ class UserProfile(models.Model):
     
     # Dietary (Meal Planner Agent)
     dietary_preferences = models.JSONField(
+        null=True,
         default=dict, blank=True,
         help_text="e.g. {'type': 'vegetarian', 'allergies': ['nuts'], 'cuisine': ['Indian', 'Italian']}"
     )
@@ -98,7 +99,7 @@ class UserProfile(models.Model):
         default=list, blank=True,
         help_text="List of conditions agents should be aware of"
     )
-    
+
     # Study (Study Agent)
     learning_style = models.CharField(
         max_length=20,
@@ -143,14 +144,14 @@ class UserProfile(models.Model):
         
         if agent_type in ('meal_planner_agent', None):
             context['dietary_preferences'] = self.dietary_preferences
-            
+
         if agent_type in ('productivity_agent', None):
             context['work_hours'] = self.work_hours
-            
+
         if agent_type in ('wellness_agent', None):
             context['fitness_level'] = self.fitness_level
             context['health_conditions'] = self.health_conditions
-            
+
         if agent_type in ('study_agent', None):
             context['learning_style'] = self.learning_style
         
