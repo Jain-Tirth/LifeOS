@@ -74,6 +74,7 @@ class UserProfile(models.Model):
     
     # Dietary (Meal Planner Agent)
     dietary_preferences = models.JSONField(
+        null=True,
         default=dict, blank=True,
         help_text="e.g. {'type': 'vegetarian', 'allergies': ['nuts'], 'cuisine': ['Indian', 'Italian']}"
     )
