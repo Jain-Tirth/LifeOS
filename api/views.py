@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status
-from rest_framework.decorators import api_view, action, permission_classes
+from rest_framework.decorators import api_view, action, permission_classes, throttle_classes
 from rest_framework.response import Response
+from .throttles import AgentMessageThrottle, AgentSessionThrottle, BurstThrottle
 from rest_framework.permissions import IsAuthenticated
 from agents.models import (
     AgentSession, 
@@ -38,7 +39,7 @@ class AgentSessionViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return AgentSession.objects.filter(user=self.request.user).order_by('-updated_at')
     
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], throttle_classes=[AgentMessageThrottle, BurstThrottle])
     def send_message(self, request, pk=None):
         """Send a message to an agent session"""
         session = self.get_object()
@@ -412,6 +413,7 @@ class HabitViewSet(viewsets.ModelViewSet):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@throttle_classes([AgentSessionThrottle])
 def create_agent_session(request):
     """Create a new agent session"""
     agent_type = request.data.get('agent_type')

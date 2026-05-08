@@ -1,6 +1,7 @@
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.response import Response
+from .throttles import AgentMessageThrottle, AgentSessionThrottle, BurstThrottle
 from rest_framework.permissions import IsAuthenticated
 from django.http import StreamingHttpResponse
 from agents.models import AgentSession, MealPlan, Task, StudySession, WellnessActivity
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@throttle_classes([AgentMessageThrottle, BurstThrottle])
 def chat(request):
     """
     Send a message to the orchestrator for intelligent agent routing
@@ -78,6 +80,7 @@ def chat(request):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@throttle_classes([AgentMessageThrottle, BurstThrottle])
 def chat_stream(request):
     """
     Stream agent responses in real-time using Server-Sent Events (SSE)

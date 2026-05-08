@@ -317,12 +317,21 @@ class Event(models.Model):
     metadata = models.JSONField(null=True, blank=True, help_text="Additional metadata")
     timestamp = models.DateTimeField(auto_now_add=True)
     parent_event = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='child_events')
+    idempotency_key = models.CharField(
+        max_length=255,
+        unique=True,
+        db_index=True,
+        null=True,
+        blank=True,
+        help_text="Unique key for deduplication (UUID from caller)"
+    )
     
     class Meta:
         ordering = ['timestamp']
         indexes = [
             models.Index(fields=['event_type', 'timestamp']),
             models.Index(fields=['session', 'timestamp']),
+            models.Index(fields=['idempotency_key']),
         ]
     
     def __str__(self):
