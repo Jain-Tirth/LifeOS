@@ -9,11 +9,10 @@ from typing import Dict, Any, Optional, List
 from agents.models import AgentSession, Message, User, UserProfile
 
 # Import Groq-based agents
-from .study_agent import study_agent_runner
-from .productivity_agent import productivity_agent_runner
-from .wellness_agent import wellness_agent_runner
-from .meal_planner_agent import meal_planner_agent_runner
-from .habit_coach_agent import habit_coach_runner
+from .execution_agent import execution_agent_runner
+from .insight_agent import insight_agent_runner
+from .planning_agent import planning_agent_runner
+from .memory_agent import memory_agent_runner
 from .communication_agent import communication_agent_runner
 
 from .event_bus import event_bus, audit_logger
@@ -37,11 +36,10 @@ class EnhancedOrchestrator:
     
     def __init__(self):
         self.agents = {
-            'study_agent': study_agent_runner,
-            'productivity_agent': productivity_agent_runner,
-            'wellness_agent': wellness_agent_runner,
-            'meal_planner_agent': meal_planner_agent_runner,
-            'habit_coach_agent': habit_coach_runner,
+            'execution_agent': execution_agent_runner,
+            'insight_agent': insight_agent_runner,
+            'planning_agent': planning_agent_runner,
+            'memory_agent': memory_agent_runner,
             'communication_agent': communication_agent_runner,
         }
     
@@ -444,7 +442,7 @@ class EnhancedOrchestrator:
     
     def get_all_agent_types(self) -> List[str]:
         """Return list of all planned agent types"""
-        return ['study_agent', 'productivity_agent', 'wellness_agent', 'meal_planner_agent', 'habit_coach_agent', 'communication_agent']
+        return ['execution_agent', 'insight_agent', 'planning_agent', 'memory_agent', 'communication_agent']
 
 
 # Singleton instance

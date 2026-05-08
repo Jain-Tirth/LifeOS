@@ -15,6 +15,8 @@ from agents.models import (
     WellnessActivity,
     Habit,
     User,
+    CalendarEvent,
+    EmailMessage,
 )
 from typing import Dict, Any, Optional, List
 import logging
@@ -101,6 +103,7 @@ class AgentSaveHelper:
                 session = AgentSaveHelper.get_session(session_id)
 
             title = data.get('title', 'Unnamed Task')
+            task_id = data.get('task_id') or data.get('id')
             defaults = {
                 'description': data.get('description', data.get('content')),
                 'priority': data.get('priority', 'medium'),
@@ -109,7 +112,19 @@ class AgentSaveHelper:
                 'session': session,
             }
 
-            if user:
+            if user and task_id:
+                task = Task.objects.filter(id=task_id, user=user).first()
+                if task:
+                    for key, value in defaults.items():
+                        setattr(task, key, value)
+                    task.title = title
+                    task.save()
+                    created = False
+                else:
+                    task, created = Task.objects.update_or_create(
+                        user=user, title=title, defaults=defaults,
+                    )
+            elif user:
                 task, created = Task.objects.update_or_create(
                     user=user, title=title, defaults=defaults,
                 )
@@ -198,6 +213,108 @@ class AgentSaveHelper:
             return None
 
     @staticmethod
+    def save_calendar_event(
+        data: Dict[str, Any],
+        session: Optional[AgentSession] = None,
+        session_id: Optional[str] = None,
+        user: Optional[User] = None
+    ) -> Optional[CalendarEvent]:
+        """
+        Idempotent save for calendar events. Upserts on (user, title, start_time).
+        """
+        try:
+            if not session and session_id:
+                session = AgentSaveHelper.get_session(session_id)
+
+            title = data.get('title', 'Unnamed Event')
+            start_time = data.get('start_time')
+            event_id = data.get('event_id') or data.get('id')
+
+            defaults = {
+                'description': data.get('description'),
+                'end_time': data.get('end_time'),
+                'location': data.get('location'),
+                'attendees': data.get('attendees', []),
+                'session': session,
+            }
+
+            if user and event_id:
+                event = CalendarEvent.objects.filter(id=event_id, user=user).first()
+                if event:
+                    for key, value in defaults.items():
+                        setattr(event, key, value)
+                    event.title = title
+                    event.start_time = start_time
+                    event.save()
+                    created = False
+                else:
+                    event, created = CalendarEvent.objects.update_or_create(
+                        user=user, title=title, start_time=start_time, defaults=defaults,
+                    )
+            elif user and start_time:
+                event, created = CalendarEvent.objects.update_or_create(
+                    user=user, title=title, start_time=start_time, defaults=defaults,
+                )
+            else:
+                defaults['title'] = title
+                defaults['start_time'] = start_time
+                defaults['user'] = user
+                event = CalendarEvent.objects.create(**defaults)
+                created = True
+
+            action = 'created' if created else 'updated'
+            logger.info(f"Calendar Event {action}: {event.id} — {title}")
+            return event
+
+        except Exception as e:
+            logger.error(f"Error saving calendar event: {str(e)}")
+            return None
+
+    @staticmethod
+    def save_email_message(
+        data: Dict[str, Any],
+        session: Optional[AgentSession] = None,
+        session_id: Optional[str] = None,
+        user: Optional[User] = None
+    ) -> Optional[EmailMessage]:
+        """
+        Save a drafted email. Upserts on (user, subject, to_address) - simplistic idempotency.
+        """
+        try:
+            if not session and session_id:
+                session = AgentSaveHelper.get_session(session_id)
+
+            subject = data.get('subject', 'No Subject')
+            to_address = data.get('to_address')
+            from_address = data.get('from_address') or getattr(user, 'email', None)
+
+            defaults = {
+                'body': data.get('body'),
+                'from_address': from_address,
+                'session': session,
+                'status': 'draft',
+            }
+
+            if to_address:
+                email_msg, created = EmailMessage.objects.update_or_create(
+                    user=user, subject=subject, to_address=to_address, defaults=defaults,
+                )
+            else:
+                defaults['subject'] = subject
+                defaults['to_address'] = to_address
+                defaults['user'] = user
+                email_msg = EmailMessage.objects.create(**defaults)
+                created = True
+
+            action = 'created' if created else 'updated'
+            logger.info(f"Email Message {action}: {email_msg.id} — {subject}")
+            return email_msg
+
+        except Exception as e:
+            logger.error(f"Error saving email message: {str(e)}")
+            return None
+
+    @staticmethod
     def save_agent_output(
         agent_type: str,
         data: Dict[str, Any],
@@ -216,6 +333,10 @@ class AgentSaveHelper:
             return AgentSaveHelper.save_study_session(data, session, session_id, user)
         elif 'wellness' in agent_type_lower:
             return AgentSaveHelper.save_wellness_activity(data, session, session_id, user)
+        elif 'calendar' in agent_type_lower or 'schedule' in agent_type_lower:
+            return AgentSaveHelper.save_calendar_event(data, session, session_id, user)
+        elif 'email' in agent_type_lower or 'communication' in agent_type_lower:
+            return AgentSaveHelper.save_email_message(data, session, session_id, user)
         else:
             logger.error(f"Unknown agent type: {agent_type}")
             return None
@@ -265,5 +386,7 @@ save_meal_plan = AgentSaveHelper.save_meal_plan
 save_task = AgentSaveHelper.save_task
 save_study_session = AgentSaveHelper.save_study_session
 save_wellness_activity = AgentSaveHelper.save_wellness_activity
+save_calendar_event = AgentSaveHelper.save_calendar_event
+save_email_message = AgentSaveHelper.save_email_message
 save_agent_output = AgentSaveHelper.save_agent_output
 bulk_save_outputs = AgentSaveHelper.bulk_save_outputs
