@@ -21,6 +21,8 @@ urlpatterns = [
     path('auth/profile/', auth_views.get_user_profile, name='user-profile'),
     path('auth/profile/update/', auth_views.update_user_profile, name='update-profile'),
     path('auth/preferences/', auth_views.update_user_preferences, name='update-preferences'),
+    path('auth/password-reset/', auth_views.request_password_reset, name='request-password-reset'),
+    path('auth/password-reset-confirm/', auth_views.reset_password, name='reset-password'),
     
     # Orchestrator endpoints
     path('chat/', orchestrator_views.chat, name='chat'),
