@@ -20,6 +20,8 @@ from .event_bus import event_bus, audit_logger
 from .intent_classifier import intent_classifier
 from .context_manager import ContextManager
 from .action_applier import action_applier
+from .context_validator import context_validator
+from .context_cache import UserContextCache
 from asgiref.sync import sync_to_async
 import logging
 import uuid
@@ -47,24 +49,10 @@ class EnhancedOrchestrator:
     
     async def _get_user_context(self, user: User, agent_type: str = None) -> Dict[str, Any]:
         """
-        Load user profile and build agent-specific context.
-        This is what makes agents actually personal.
+        Load user profile and build agent-specific context using Redis cache.
         """
         try:
-            profile = await sync_to_async(
-                lambda: UserProfile.objects.filter(user=user).first()
-            )()
-            
-            if profile:
-                return await sync_to_async(
-                    lambda: profile.get_agent_context(agent_type)
-                )()
-            
-            # No profile yet — return minimal context
-            return {
-                'name': await sync_to_async(user.get_full_name)(),
-                'timezone': 'Asia/Kolkata',
-            }
+            return await UserContextCache.get_context(user, agent_type)
         except Exception as e:
             logger.warning(f"Failed to load user context: {e}")
             return {}
@@ -81,6 +69,9 @@ class EnhancedOrchestrator:
         INTENT_RECEIVED → AGENT_SELECTED → CONTEXT_FETCHED → 
         AGENT_RESPONSE → ACTIONS_APPLIED → AUDIT_LOGGED
         """
+        # Generate correlation ID for this request
+        request_id = str(uuid.uuid4())
+
         try:
             # Create or get session
             if not session:
@@ -96,10 +87,12 @@ class EnhancedOrchestrator:
                 payload={
                     'message': message,
                     'user_id': user.id,
-                    'session_id': session.session_id
+                    'session_id': session.session_id,
+                    'request_id': request_id
                 },
                 session=session,
-                user=user if user.is_authenticated else None
+                user=user if user.is_authenticated else None,
+                idempotency_key=f"{request_id}:intent_received"
             )
             
             # Save user message
@@ -135,7 +128,8 @@ class EnhancedOrchestrator:
                 },
                 session=session,
                 user=user if user.is_authenticated else None,
-                parent_event=intent_event
+                parent_event=intent_event,
+                idempotency_key=f"{request_id}:agent_selected"
             )
             
             # Step 3: CONTEXT_FETCHED - Build context INCLUDING user profile
@@ -145,6 +139,17 @@ class EnhancedOrchestrator:
             # Get user-specific context for the selected agent
             user_context = await self._get_user_context(user, selected_agent)
             
+            # Validate before injecting into agent
+            try:
+                validated_context = context_validator.validate(user_context)
+            except ValueError as e:
+                logger.warning(f"Context validation failed for user {user.id if user else 'anonymous'}: {e}")
+                return {
+                    'success': False,
+                    'error': 'User profile configuration invalid',
+                    'detail': str(e)
+                }
+
             context_event = await event_bus.publish(
                 'CONTEXT_FETCHED',
                 payload={
@@ -154,7 +159,8 @@ class EnhancedOrchestrator:
                 },
                 session=session,
                 user=user if user.is_authenticated else None,
-                parent_event=agent_selected_event
+                parent_event=agent_selected_event,
+                idempotency_key=f"{request_id}:context_fetched"
             )
             
             # Step 4: AGENT_RESPONSE - Route to agent WITH context
@@ -170,7 +176,8 @@ class EnhancedOrchestrator:
                     },
                     session=session,
                     user=user if user.is_authenticated else None,
-                    parent_event=context_event
+                    parent_event=context_event,
+                    idempotency_key=f"{request_id}:error_not_implemented"
                 )
                 
                 return {
@@ -185,7 +192,7 @@ class EnhancedOrchestrator:
             agent_response = await agent_runner.run_agent(
                 message, 
                 session_id=session.session_id,
-                user_context=user_context
+                user_context=validated_context
             )
             
             response_event = await event_bus.publish(
@@ -196,7 +203,8 @@ class EnhancedOrchestrator:
                 },
                 session=session,
                 user=user if user.is_authenticated else None,
-                parent_event=context_event
+                parent_event=context_event,
+                idempotency_key=f"{request_id}:agent_response"
             )
             
             # Save agent message with agent type in metadata
@@ -220,7 +228,8 @@ class EnhancedOrchestrator:
                 },
                 session=session,
                 user=user if user.is_authenticated else None,
-                parent_event=response_event
+                parent_event=response_event,
+                idempotency_key=f"{request_id}:actions_applied"
             )
             
             # Step 6: AUDIT_LOGGED
@@ -246,7 +255,8 @@ class EnhancedOrchestrator:
                 },
                 session=session,
                 user=user if user.is_authenticated else None,
-                parent_event=response_event
+                parent_event=response_event,
+                idempotency_key=f"{request_id}:audit_logged"
             )
             
             return {
@@ -273,6 +283,13 @@ class EnhancedOrchestrator:
                     user=user if user.is_authenticated else None,
                     success=False,
                     error_message=str(e)
+                )
+                await event_bus.publish(
+                    'ERROR_OCCURRED',
+                    payload={'error': str(e), 'request_id': request_id},
+                    session=session,
+                    user=user if user.is_authenticated else None,
+                    idempotency_key=f"{request_id}:error"
                 )
             
             return {
@@ -343,6 +360,17 @@ class EnhancedOrchestrator:
             # Get user context for personalization
             user_context = await self._get_user_context(user, selected_agent)
             
+            # Validate before injecting into agent
+            try:
+                validated_context = context_validator.validate(user_context)
+            except ValueError as e:
+                logger.warning(f"Context validation failed for user {user.id if user else 'anonymous'}: {e}")
+                yield {
+                    'type': 'error',
+                    'error': 'User profile configuration invalid'
+                }
+                return
+
             # Stream agent response WITH user context
             agent_runner = self.agents[selected_agent]
             full_response = ""
@@ -351,7 +379,7 @@ class EnhancedOrchestrator:
             async for chunk in agent_runner.run_agent_stream(
                 message, 
                 session_id=session.session_id,
-                user_context=user_context
+                user_context=validated_context
             ):
                 if chunk:
                     chunk_count += 1

@@ -1,15 +1,16 @@
 """
 Groq Agent Base - Fast LLM agent using Groq API
-Now with DB-persisted history and context injection (no more amnesia).
+Now with DB-persisted history, context injection, and TOOL CALLING (actionable agent).
 """
 import os
 import json
 import logging
 from typing import AsyncGenerator, Optional, Dict, Any, List
-from groq import Groq, AsyncGroq
 from django.conf import settings
 from dotenv import load_dotenv
 from asgiref.sync import sync_to_async
+from .groq_client import GroqClientFactory
+from .tool_executor import tool_executor
 
 load_dotenv()
 
@@ -21,7 +22,9 @@ class GroqAgentRunner:
     Base runner for Groq-based agents with:
     - DB-persisted conversation history (survives server restarts)
     - User context injection (agents know WHO they're talking to)
+    - Native function calling (agents can EXECUTE actions, not just chat)
     - Streaming support
+    - Execution trace for transparency UI
     """
     
     AVAILABLE_MODELS = {
@@ -31,20 +34,19 @@ class GroqAgentRunner:
         'gemma2-9b': 'gemma2-9b-it',
     }
     
-    # How many past messages to load from DB for context
-    HISTORY_WINDOW = 20
-    
     def __init__(
         self, 
         agent_name: str,
         system_instruction: str,
         model: str = 'llama-3.3-70b',
         temperature: float = 0.7,
-        max_tokens: int = 8000
+        max_tokens: int = 8000,
+        enable_tools: bool = True
     ):
         self.agent_name = agent_name
+        self.enable_tools = enable_tools
         
-        # Append formatting guidelines
+        # Append formatting guidelines AND tool usage instructions
         strict_formatting = """
         
 VISUAL STYLING GUIDELINES (STRICT COMPLIANCE REQUIRED):
@@ -55,6 +57,13 @@ VISUAL STYLING GUIDELINES (STRICT COMPLIANCE REQUIRED):
 - Callout Blocks: Wrap specific advice or "next steps" in > Blockquotes.
 - Tables: If comparing two or more things, use a Markdown table.
 - Task: Provide well-structured, professional, and visually scannable responses.
+
+TOOL USAGE RULES (CRITICAL):
+- When the user asks you to DO something (create task, check balance, schedule event), YOU MUST call the appropriate tool.
+- Do NOT just say "I'll create a task" - actually CALL the create_task tool with proper arguments.
+- After calling a tool, wait for the result, then inform the user of the outcome.
+- If multiple actions are needed, call tools one at a time in sequence.
+- Available tools: """ + (", ".join(tool_executor.tools.keys()) if enable_tools else "None") + """
 """
         self.system_instruction = system_instruction + strict_formatting
         self.temperature = temperature
@@ -64,25 +73,19 @@ VISUAL STYLING GUIDELINES (STRICT COMPLIANCE REQUIRED):
         self.model = self.AVAILABLE_MODELS.get(model, self.AVAILABLE_MODELS['llama-3.3-70b'])
         
         # Initialize Groq clients
-        api_key = self._get_api_key()
-        self.client = Groq(api_key=api_key)
-        self.async_client = AsyncGroq(api_key=api_key)
-    
-    def _get_api_key(self) -> str:
-        """Get Groq API key from settings or environment"""
-        api_key = getattr(settings, 'GROQ_API_KEY', None) or os.getenv('GROQ_API_KEY')
-        if not api_key:
-            raise ValueError(
-                "GROQ_API_KEY not found. Get one free at https://console.groq.com/keys"
-            )
-        return api_key
+        self.client = GroqClientFactory.get_client()
+        self.async_client = GroqClientFactory.get_async_client()
+        
+        # Get tool definitions for function calling
+        self.tools = tool_executor.get_tool_definitions() if enable_tools else []
     
     async def _load_history_from_db(self, session_id: str) -> List[Dict[str, str]]:
         """
-        Load conversation history from DB instead of in-memory dict.
-        This means history survives server restarts.
+        Load conversation history from DB with smart truncation to fit
+        within token context limits, keeping system message and most recent.
         """
         from agents.models import Message, AgentSession
+        import tiktoken
         
         try:
             session = await sync_to_async(
@@ -92,23 +95,48 @@ VISUAL STYLING GUIDELINES (STRICT COMPLIANCE REQUIRED):
             if not session:
                 return []
             
-            messages = await sync_to_async(
-                lambda: list(
-                    session.messages.order_by('-created_at')[:self.HISTORY_WINDOW]
-                )
+            # Load ALL messages (no arbitrary window limit)
+            all_messages = await sync_to_async(
+                lambda: list(session.messages.order_by('created_at'))
             )()
             
-            # Reverse to chronological order
-            messages.reverse()
-            
+            # Convert to OpenAI format
             history = []
-            for msg in messages:
+            for msg in all_messages:
                 role = 'assistant' if msg.role == 'agent' else msg.role
                 if role in ('user', 'assistant'):
                     history.append({
                         'role': role,
                         'content': msg.content
                     })
+
+            if not history:
+                return []
+
+            # Count tokens and truncate if necessary
+            # We use cl100k_base which is a good proxy for most models
+            try:
+                enc = tiktoken.get_encoding("cl100k_base")
+            except Exception:
+                # Fallback to cl100k_base if model not found
+                enc = tiktoken.get_encoding("cl100k_base")
+
+            MAX_TOKENS = 7000  # Leave 1k for response
+
+            total_tokens = sum(len(enc.encode(h['content'])) for h in history)
+
+            if total_tokens > MAX_TOKENS:
+                # Keep last N messages
+                keep_recent = []
+                token_count = 0
+                for msg in reversed(history):
+                    msg_tokens = len(enc.encode(msg['content']))
+                    if token_count + msg_tokens > MAX_TOKENS - 500:
+                        break
+                    keep_recent.insert(0, msg)
+                    token_count += msg_tokens
+
+                history = keep_recent
             
             return history
             
@@ -226,7 +254,7 @@ VISUAL STYLING GUIDELINES (STRICT COMPLIANCE REQUIRED):
         user_context: Optional[Dict[str, Any]] = None
     ) -> str:
         """
-        Run agent and return complete response.
+        Run agent with tool calling support and return complete response.
         
         Args:
             user_input: User's message
@@ -234,21 +262,69 @@ VISUAL STYLING GUIDELINES (STRICT COMPLIANCE REQUIRED):
             user_context: User profile context from UserProfile.get_agent_context()
             
         Returns:
-            Complete agent response
+            Complete agent response (may include executed tool results)
         """
         try:
             messages = await self._build_messages(user_input, session_id, user_context)
             
-            response = await self.async_client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
-                frequency_penalty=0.2,
-                presence_penalty=0.2,
-            )
+            # Build API call with tools if enabled
+            api_kwargs = {
+                "model": self.model,
+                "messages": messages,
+                "temperature": self.temperature,
+                "max_tokens": self.max_tokens,
+                "frequency_penalty": 0.2,
+                "presence_penalty": 0.2,
+            }
+            
+            # Add tools for function calling if enabled
+            if self.tools:
+                api_kwargs["tools"] = self.tools
+            
+            response = await self.async_client.chat.completions.create(**api_kwargs)
             
             assistant_message = response.choices[0].message.content
+            
+            # Check if LLM requested tool calls
+            if response.choices[0].message.tool_calls:
+                logger.info(f"Tool calls detected: {len(response.choices[0].message.tool_calls)}")
+                
+                # Execute each tool call
+                for tool_call in response.choices[0].message.tool_calls:
+                    tool_name = tool_call.function.name
+                    tool_args = json.loads(tool_call.function.arguments)
+                    
+                    # Execute the tool
+                    result = await tool_executor.execute_tool(tool_name, tool_args)
+                    
+                    # Add tool result to messages for next iteration
+                    messages.append({
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [{
+                            "id": tool_call.id,
+                            "type": "function",
+                            "function": {
+                                "name": tool_name,
+                                "arguments": tool_call.function.arguments
+                            }
+                        }]
+                    })
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": json.dumps(result)
+                    })
+                
+                # Make second API call with tool results
+                final_response = await self.async_client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens,
+                )
+                assistant_message = final_response.choices[0].message.content or assistant_message
+            
             return assistant_message
             
         except Exception as e:

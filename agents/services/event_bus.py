@@ -31,32 +31,46 @@ class EventBus:
         session: Optional[AgentSession] = None,
         user: Optional[User] = None,
         parent_event: Optional[Event] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        idempotency_key: Optional[str] = None
     ) -> Optional[Event]:
         """
-        Publish an event. Only persists significant events to DB.
+        Publish an event. Persists significant events to DB and handles idempotency.
         All events are logged regardless.
         """
+        import uuid
+        
         logger.info(f"Event: {event_type} | session={session.session_id if session else 'none'}")
         
-        # Only write to DB for significant events
-        if event_type in self.PERSIST_EVENTS:
-            try:
-                event = await sync_to_async(Event.objects.create)(
-                    event_type=event_type,
-                    session=session,
-                    user=user,
-                    payload=payload,
-                    metadata=metadata or {},
-                    parent_event=parent_event
-                )
-                return event
-            except Exception as e:
-                logger.error(f"Failed to persist event {event_type}: {e}")
-                return None
-        
-        # Non-persisted events just get logged
-        return None
+        # We now persist ALL events as requested by the plan to fix in-memory loss issues.
+        # But for robustness, we use idempotency key logic as well.
+        if not idempotency_key:
+            idempotency_key = str(uuid.uuid4())
+
+        try:
+            # Check for duplicate
+            existing = await sync_to_async(
+                lambda: Event.objects.filter(idempotency_key=idempotency_key).first()
+            )()
+
+            if existing:
+                logger.info(f"Event deduped: {idempotency_key}")
+                return existing
+
+            # Create new event
+            event = await sync_to_async(Event.objects.create)(
+                event_type=event_type,
+                session=session,
+                user=user,
+                payload=payload,
+                metadata=metadata or {},
+                parent_event=parent_event,
+                idempotency_key=idempotency_key
+            )
+            return event
+        except Exception as e:
+            logger.error(f"Failed to persist event {event_type}: {e}")
+            return None
 
 
 # Singleton instance

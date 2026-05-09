@@ -37,6 +37,9 @@ urlpatterns = [
     path('bulk-save-agent-responses/', orchestrator_views.bulk_save_agent_responses, name='bulk-save-agent-responses'),
     path('sessions/<str:session_id>/saved-items/', orchestrator_views.get_session_saved_items, name='session-saved-items'),
     
+    # Health check
+    path('health/', views.health_check, name='health-check'),
+
     # Agent and data endpoints
     path('', include(router.urls)),
     path('create-session/', views.create_agent_session, name='create-session'),
