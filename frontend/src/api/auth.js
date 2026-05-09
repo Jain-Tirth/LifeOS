@@ -59,8 +59,10 @@ export const logout = () => {
     localStorage.removeItem('lifeos_token');
 };
 
-// SECURITY NOTE: For production, migrate to httpOnly cookies:
-// 1. Backend should set tokens in httpOnly, Secure, SameSite cookies
-// 2. Remove localStorage token storage
-// 3. Use CSRF tokens for authentication requests
-// 4. Implement proper token rotation with short-lived access tokens
+export const requestPasswordReset = async (email) => {
+    return client.post('/auth/password-reset/', { email });
+};
+
+export const resetPassword = async (uid, token, password) => {
+    return client.post('/auth/password-reset-confirm/', { uid, token, password });
+};
