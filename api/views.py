@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status
-from rest_framework.decorators import api_view, action, permission_classes
+from rest_framework.decorators import api_view, action, permission_classes, throttle_classes
 from rest_framework.response import Response
+from .throttles import AgentMessageThrottle, AgentSessionThrottle, BurstThrottle, AuthRateThrottle
 from rest_framework.permissions import IsAuthenticated
 from agents.models import (
     AgentSession, 
@@ -22,12 +23,42 @@ from .serializers import (
     HabitSerializer,
     HabitLogSerializer
 )
+from .base_viewsets import UserOwnedViewSet
 from agents.services.orchestrator import orchestrator
 from asgiref.sync import async_to_sync
 import uuid
 import logging
+import re
 
 logger = logging.getLogger(__name__)
+
+# Maximum message length to prevent prompt injection and cost explosion
+MAX_MESSAGE_LENGTH = 4000
+
+
+def sanitize_input(content):
+    """
+    Sanitize user input to prevent prompt injection attacks.
+    Removes or escapes potentially dangerous patterns.
+    """
+    if not content:
+        return content
+    
+    # Remove potential system prompt injection patterns
+    dangerous_patterns = [
+        r'(?i)ignore\s+previous\s+instructions',
+        r'(?i)system:\s*',
+        r'(?i)you\s+are\s+now',
+        r'(?i)forget\s+all',
+        r'(?i)bypass\s+',
+        r'(?i)override\s+',
+    ]
+    
+    sanitized = content
+    for pattern in dangerous_patterns:
+        sanitized = re.sub(pattern, '[REMOVED]', sanitized)
+    
+    return sanitized.strip()
 
 
 class AgentSessionViewSet(viewsets.ModelViewSet):
@@ -38,27 +69,38 @@ class AgentSessionViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return AgentSession.objects.filter(user=self.request.user).order_by('-updated_at')
     
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'], throttle_classes=[AgentMessageThrottle, BurstThrottle])
     def send_message(self, request, pk=None):
-        """Send a message to an agent session"""
+        """Send a message to an agent session with input validation and sanitization"""
         session = self.get_object()
-        content = request.data.get('content')
+        content = request.data.get('content', '').strip()
         
+        # Validate content presence
         if not content:
             return Response(
                 {'error': 'Content is required'}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Create user message
+        # Validate content length to prevent token limit exhaustion and cost explosion
+        if len(content) > MAX_MESSAGE_LENGTH:
+            return Response(
+                {'error': f'Message exceeds {MAX_MESSAGE_LENGTH} character limit. Please shorten your message.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Sanitize input to prevent prompt injection attacks
+        sanitized_content = sanitize_input(content)
+        
+        # Create user message with sanitized content
         user_message = Message.objects.create(
             session=session,
             role='user',
-            content=content
+            content=sanitized_content
         )
         
         result = async_to_sync(orchestrator.process_message)(
-            message=content,
+            message=sanitized_content,
             user=request.user,
             session=session
         )
@@ -95,19 +137,14 @@ class MessageViewSet(viewsets.ModelViewSet):
         return Message.objects.filter(session__user=self.request.user).order_by('created_at')
 
 
-class MealPlanViewSet(viewsets.ModelViewSet):
+class MealPlanViewSet(UserOwnedViewSet):
     """ViewSet for managing meal plans with enhanced save-to-agent logic"""
     queryset = MealPlan.objects.all()
     serializer_class = MealPlanSerializer
-    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         """Filter meal plans by user and query parameters"""
         queryset = super().get_queryset()
-
-        # Filter by current user if authenticated
-        if self.request.user.is_authenticated:
-            queryset = queryset.filter(user=self.request.user)
 
         # Support query parameters for filtering
         date = self.request.query_params.get('date')
@@ -123,20 +160,6 @@ class MealPlanViewSet(viewsets.ModelViewSet):
 
         return queryset.order_by('-created_at')
 
-    def perform_create(self, serializer):
-        """Save meal plan with automatic user assignment"""
-        try:
-            # Automatically assign current user if authenticated
-            if self.request.user.is_authenticated:
-                serializer.save(user=self.request.user)
-            else:
-                serializer.save()
-
-            logger.info(f"Meal plan created successfully from agent")
-        except Exception as e:
-            logger.error(f"Error creating meal plan: {str(e)}")
-            raise
-
     def create(self, request, *args, **kwargs):
         """Override create to add custom response with success message"""
         serializer = self.get_serializer(data=request.data)
@@ -151,19 +174,14 @@ class MealPlanViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_201_CREATED, headers=headers)
 
 
-class TaskViewSet(viewsets.ModelViewSet):
+class TaskViewSet(UserOwnedViewSet):
     """ViewSet for managing tasks with enhanced save-to-agent logic"""
     queryset = Task.objects.all()
     serializer_class = TaskSerializer
-    permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         """Filter tasks by user and query parameters"""
         queryset = super().get_queryset()
-        
-        # Filter by current user if authenticated
-        if self.request.user.is_authenticated:
-            queryset = queryset.filter(user=self.request.user)
         
         # Support query parameters for filtering
         status_param = self.request.query_params.get('status')
@@ -178,20 +196,6 @@ class TaskViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(session__session_id=session_id)
         
         return queryset.order_by('-priority', 'due_date', '-created_at')
-    
-    def perform_create(self, serializer):
-        """Save task with automatic user assignment"""
-        try:
-            # Automatically assign current user if authenticated
-            if self.request.user.is_authenticated:
-                serializer.save(user=self.request.user)
-            else:
-                serializer.save()
-            
-            logger.info(f"Task created successfully from agent")
-        except Exception as e:
-            logger.error(f"Error creating task: {str(e)}")
-            raise
     
     def create(self, request, *args, **kwargs):
         """Override create to add custom response with success message"""
@@ -216,19 +220,14 @@ class TaskViewSet(viewsets.ModelViewSet):
             raise
 
 
-class StudySessionViewSet(viewsets.ModelViewSet):
+class StudySessionViewSet(UserOwnedViewSet):
     """ViewSet for managing study sessions with enhanced save-to-agent logic"""
     queryset = StudySession.objects.all()
     serializer_class = StudySessionSerializer
-    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         """Filter study sessions by user and query parameters"""
         queryset = super().get_queryset()
-
-        # Filter by current user if authenticated
-        if self.request.user.is_authenticated:
-            queryset = queryset.filter(user=self.request.user)
 
         # Support query parameters for filtering
         subject = self.request.query_params.get('subject')
@@ -240,20 +239,6 @@ class StudySessionViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(session__session_id=session_id)
 
         return queryset.order_by('-created_at')
-
-    def perform_create(self, serializer):
-        """Save study session with automatic user assignment"""
-        try:
-            # Automatically assign current user if authenticated
-            if self.request.user.is_authenticated:
-                serializer.save(user=self.request.user)
-            else:
-                serializer.save()
-
-            logger.info(f"Study session created successfully from agent")
-        except Exception as e:
-            logger.error(f"Error creating study session: {str(e)}")
-            raise
 
     def create(self, request, *args, **kwargs):
         """Override create to add custom response with success message"""
@@ -269,19 +254,14 @@ class StudySessionViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_201_CREATED, headers=headers)
 
 
-class WellnessActivityViewSet(viewsets.ModelViewSet):
+class WellnessActivityViewSet(UserOwnedViewSet):
     """ViewSet for managing wellness activities with enhanced save-to-agent logic"""
     queryset = WellnessActivity.objects.all()
     serializer_class = WellnessActivitySerializer
-    permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         """Filter wellness activities by user and query parameters"""
         queryset = super().get_queryset()
-        
-        # Filter by current user if authenticated
-        if self.request.user.is_authenticated:
-            queryset = queryset.filter(user=self.request.user)
         
         # Support query parameters for filtering
         activity_type = self.request.query_params.get('activity_type')
@@ -300,20 +280,6 @@ class WellnessActivityViewSet(viewsets.ModelViewSet):
         
         return queryset.order_by('-recorded_at')
     
-    def perform_create(self, serializer):
-        """Save wellness activity with automatic user assignment"""
-        try:
-            # Automatically assign current user if authenticated
-            if self.request.user.is_authenticated:
-                serializer.save(user=self.request.user)
-            else:
-                serializer.save()
-            
-            logger.info(f"Wellness activity created successfully from agent")
-        except Exception as e:
-            logger.error(f"Error creating wellness activity: {str(e)}")
-            raise
-    
     def create(self, request, *args, **kwargs):
         """Override create to add custom response with success message"""
         serializer = self.get_serializer(data=request.data)
@@ -327,6 +293,48 @@ class WellnessActivityViewSet(viewsets.ModelViewSet):
             'data': serializer.data
         }, status=status.HTTP_201_CREATED, headers=headers)
 
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def health_check(request):
+    """
+    Production health check endpoint
+    """
+    from django.db import connection
+    from django.core.cache import cache
+    import os
+
+    status_data = {
+        'status': 'healthy',
+        'database': 'disconnected',
+        'redis': 'disconnected',
+        'groq_api': 'invalid'
+    }
+
+    # Check DB
+    try:
+        connection.cursor()
+        status_data['database'] = 'connected'
+    except Exception:
+        status_data['status'] = 'unhealthy'
+
+    # Check Redis
+    try:
+        cache.set('health_check', '1', timeout=1)
+        if cache.get('health_check') == '1':
+            status_data['redis'] = 'connected'
+    except Exception:
+        status_data['status'] = 'unhealthy'
+
+    from django.conf import settings
+    # Check Groq config
+    if getattr(settings, 'GROQ_API_KEY', None) or os.getenv('GROQ_API_KEY'):
+        status_data['groq_api'] = 'valid'
+    else:
+        status_data['status'] = 'unhealthy'
+
+    status_code = status.HTTP_200_OK if status_data['status'] == 'healthy' else status.HTTP_503_SERVICE_UNAVAILABLE
+    return Response(status_data, status=status_code)
 
 class HabitViewSet(viewsets.ModelViewSet):
     """CRUD for habits + toggle completion + daily digest."""
@@ -412,6 +420,7 @@ class HabitViewSet(viewsets.ModelViewSet):
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
+@throttle_classes([AgentSessionThrottle])
 def create_agent_session(request):
     """Create a new agent session"""
     agent_type = request.data.get('agent_type')

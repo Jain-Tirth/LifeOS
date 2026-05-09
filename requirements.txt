@@ -7,8 +7,8 @@ djangorestframework-simplejwt==5.3.1
 # Environment variables
 python-dotenv==1.0.0
 
-# Database (optional - only if using PostgreSQL)
-# psycopg2-binary==2.9.9  # Uncomment if you need PostgreSQL support
+# Database
+psycopg2-binary==2.9.9
 
 # Groq API for AI agents (fast, high rate limits)
 groq==0.11.0
@@ -19,8 +19,19 @@ asgiref==3.7.2
 # Additional utilities
 python-dateutil==2.8.2
 pytz==2024.1
+django-redis==5.4.0
+pydantic==2.6.4
 
 # Development tools (optional)
 black==24.1.1
 flake8==7.0.0
 pylint==3.0.3
+pytest==8.0.2
+pytest-django==4.8.0
+pytest-asyncio==0.23.5
+httpx==0.27.0
+tiktoken==0.6.0
+
+locust==2.24.1
+celery==5.3.6
+redis==5.0.1
