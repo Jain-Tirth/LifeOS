@@ -1,11 +1,12 @@
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth import authenticate
 from django.middleware.csrf import get_token
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework_simplejwt.tokens import AccessToken
+from django.core.cache import cache
 from agents.models import User, UserProfile
 from agents.services.event_bus import audit_logger
 from .auth_serializers import (
@@ -14,6 +15,12 @@ from .auth_serializers import (
     UserSerializer,
     UserProfileSerializer
 )
+from .throttles import AuthRateThrottle
+
+
+# Rate limiting configuration
+LOGIN_RATE_LIMIT = 5  # Max failed attempts
+LOGIN_LOCKOUT_TIME = 900  # 15 minutes in seconds
 
 
 def get_client_ip(request):
@@ -26,6 +33,32 @@ def get_client_ip(request):
     return ip
 
 
+def check_login_rate_limit(email):
+    """Check if email is rate limited due to failed login attempts"""
+    cache_key = f'login_failed_{email}'
+    attempts = cache.get(cache_key, 0)
+    
+    if attempts >= LOGIN_RATE_LIMIT:
+        lockout_time = cache.ttl(cache_key) or LOGIN_LOCKOUT_TIME
+        return False, lockout_time
+    
+    return True, None
+
+
+def record_failed_login(email):
+    """Record a failed login attempt"""
+    cache_key = f'login_failed_{email}'
+    attempts = cache.get(cache_key, 0) + 1
+    cache.set(cache_key, attempts, timeout=LOGIN_LOCKOUT_TIME)
+    return attempts
+
+
+def reset_login_attempts(email):
+    """Reset login attempts after successful login"""
+    cache_key = f'login_failed_{email}'
+    cache.delete(cache_key)
+
+
 @ensure_csrf_cookie
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -36,8 +69,9 @@ def get_csrf_token(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([AuthRateThrottle])
 def register(request):
-    """Register a new user. UserProfile is auto-created via signal."""
+    """Register a new user. UserProfile is auto-created via signal. Rate limited to prevent abuse."""
     serializer = UserRegistrationSerializer(data=request.data)
     
     if serializer.is_valid():
@@ -85,8 +119,9 @@ def register(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
+@throttle_classes([AuthRateThrottle])
 def login(request):
-    """Login with email and password."""
+    """Login with email and password. Includes rate limiting for brute-force protection."""
     serializer = UserLoginSerializer(data=request.data)
     
     if not serializer.is_valid():
@@ -95,13 +130,32 @@ def login(request):
     email = serializer.validated_data['email']
     password = serializer.validated_data['password']
     
+    # Check rate limit before attempting authentication
+    is_allowed, lockout_time = check_login_rate_limit(email)
+    if not is_allowed:
+        audit_logger.log_authentication(
+            action='Failed Login - Rate Limited',
+            user=None,
+            details={'email': email},
+            ip_address=get_client_ip(request),
+            user_agent=request.META.get('HTTP_USER_AGENT'),
+            success=False,
+            error_message=f'Account temporarily locked due to too many failed attempts'
+        )
+        return Response({
+            'error': f'Too many failed login attempts. Please try again in {lockout_time // 60} minutes.'
+        }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+    
     try:
         user = User.objects.get(email=email)
         if not user.check_password(password):
+            # Record failed attempt
+            attempts = record_failed_login(email)
+            
             audit_logger.log_authentication(
                 action='Failed Login - Invalid Password',
                 user=user,
-                details={'email': email},
+                details={'email': email, 'attempts': attempts},
                 ip_address=get_client_ip(request),
                 user_agent=request.META.get('HTTP_USER_AGENT'),
                 success=False,
@@ -125,6 +179,9 @@ def login(request):
                 'error': 'Account is disabled'
             }, status=status.HTTP_401_UNAUTHORIZED)
         
+        # Reset failed attempts on successful login
+        reset_login_attempts(email)
+        
         # Ensure profile exists for existing users
         UserProfile.objects.get_or_create(user=user)
         
@@ -142,10 +199,14 @@ def login(request):
         return Response({
             'message': 'Login successful',
             'user': UserSerializer(user).data,
-            'token': str(token)
+            'token': str(token),
+            'refresh': str(token)  # For refresh token flow
         }, status=status.HTTP_200_OK)
         
     except User.DoesNotExist:
+        # Record failed attempt for non-existent user (prevents user enumeration)
+        record_failed_login(email)
+        
         audit_logger.log_authentication(
             action='Failed Login - User Not Found',
             user=None,

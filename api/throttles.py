@@ -1,5 +1,13 @@
-from rest_framework.throttling import UserRateThrottle
+from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
 from rest_framework.exceptions import Throttled
+
+class AuthRateThrottle(AnonRateThrottle):
+    """
+    Rate limit authentication endpoints to prevent brute-force attacks.
+    Implements: 5 requests per minute for anonymous users.
+    """
+    scope = 'auth'
+    rate = '5/min'
 
 class AgentMessageThrottle(UserRateThrottle):
     """
