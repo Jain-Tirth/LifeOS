@@ -118,3 +118,42 @@ base_settings = importlib.import_module('lifeos.settings')
 for attr in dir(base_settings):
     if attr.isupper() and attr not in locals():
         locals()[attr] = getattr(base_settings, attr)
+
+# Modify MIDDLEWARE
+if 'lifeos.middleware.CorrelationIdMiddleware' not in MIDDLEWARE:
+    MIDDLEWARE = ['lifeos.middleware.CorrelationIdMiddleware'] + MIDDLEWARE
+
+# Celery Configuration
+CELERY_BROKER_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/1')
+CELERY_RESULT_BACKEND = os.getenv('REDIS_URL', 'redis://localhost:6379/1')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'json': {
+            '()': 'lifeos.logging_config.JsonFormatter',
+        },
+    },
+    'handlers': {
+        'stdout': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'json',
+            'stream': 'ext://sys.stdout',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['stdout'],
+            'level': 'INFO',
+        },
+        'agents': {
+            'handlers': ['stdout'],
+            'level': 'DEBUG',
+        },
+    },
+}

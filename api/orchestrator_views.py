@@ -50,17 +50,23 @@ async def chat(request):
                 'error': 'Session not found or does not belong to user'
             }, status=status.HTTP_404_NOT_FOUND)
     
-    # Call async orchestrator directly (no wrapper)
+    # Use Celery for background processing
+    from agents.tasks import process_agent_message_task
+
     try:
-        result = await orchestrator.process_message(
+        # Offload the orchestrator processing to celery
+        task = process_agent_message_task.delay(
             message=message,
-            user=request.user,
-            session=session,
+            user_id=request.user.id,
+            session_id=session_id,
             force_agent=force_agent
         )
         
-        response_serializer = ChatResponseSerializer(result)
-        return Response(response_serializer.data, status=status.HTTP_200_OK)
+        return Response({
+            'success': True,
+            'message': 'Message queued for processing',
+            'task_id': task.id
+        }, status=status.HTTP_202_ACCEPTED)
         
     except Exception as e:
         import traceback

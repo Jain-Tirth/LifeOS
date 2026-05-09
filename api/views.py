@@ -254,6 +254,48 @@ class WellnessActivityViewSet(UserOwnedViewSet):
         }, status=status.HTTP_201_CREATED, headers=headers)
 
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def health_check(request):
+    """
+    Production health check endpoint
+    """
+    from django.db import connection
+    from django.core.cache import cache
+    import os
+
+    status_data = {
+        'status': 'healthy',
+        'database': 'disconnected',
+        'redis': 'disconnected',
+        'groq_api': 'invalid'
+    }
+
+    # Check DB
+    try:
+        connection.cursor()
+        status_data['database'] = 'connected'
+    except Exception:
+        status_data['status'] = 'unhealthy'
+
+    # Check Redis
+    try:
+        cache.set('health_check', '1', timeout=1)
+        if cache.get('health_check') == '1':
+            status_data['redis'] = 'connected'
+    except Exception:
+        status_data['status'] = 'unhealthy'
+
+    from django.conf import settings
+    # Check Groq config
+    if getattr(settings, 'GROQ_API_KEY', None) or os.getenv('GROQ_API_KEY'):
+        status_data['groq_api'] = 'valid'
+    else:
+        status_data['status'] = 'unhealthy'
+
+    status_code = status.HTTP_200_OK if status_data['status'] == 'healthy' else status.HTTP_503_SERVICE_UNAVAILABLE
+    return Response(status_data, status=status_code)
+
 class HabitViewSet(viewsets.ModelViewSet):
     """CRUD for habits + toggle completion + daily digest."""
     queryset = Habit.objects.all()
