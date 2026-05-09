@@ -1,0 +1,125 @@
+# Cloud Build configuration for LifeOS
+# This file enables automated building and deployment on every git push
+# To set up: gcloud builds submit --config=cloudbuild-cicd.yaml
+
+steps:
+  # Step 1: Build Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-image'
+    args:
+      - 'build'
+      - '-f'
+      - 'Dockerfile.prod'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/lifeos-backend:latest'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/lifeos-backend:${SHORT_SHA}'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/lifeos-backend:${BUILD_ID}'
+      - '.'
+
+  # Step 2: Push Docker image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-image'
+    args:
+      - 'push'
+      - '--all-tags'
+      - 'gcr.io/$PROJECT_ID/lifeos-backend'
+
+  # Step 3: Deploy to Cloud Run
+  - name: 'gcr.io/cloud-builders/run'
+    id: 'deploy'
+    args:
+      - 'deploy'
+      - 'lifeos-backend'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/lifeos-backend:${SHORT_SHA}'
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--service-account'
+      - '${_SERVICE_ACCOUNT}@$PROJECT_ID.iam.gserviceaccount.com'
+      - '--set-env-vars'
+      - 'DB_ENGINE=${_DB_ENGINE},DB_NAME=${_DB_NAME},DB_USER=${_DB_USER},DB_PASSWORD=${_DB_PASSWORD},INSTANCE_CONNECTION_NAME=${_INSTANCE_CONNECTION_NAME},DJANGO_SECRET_KEY=${_DJANGO_SECRET_KEY},DEBUG=False,ALLOWED_HOSTS=${_ALLOWED_HOSTS},GROQ_API_KEY=${_GROQ_API_KEY},API_URL=${_API_URL}'
+      - '--memory'
+      - '${_MEMORY}'
+      - '--cpu'
+      - '${_CPU}'
+      - '--timeout'
+      - '3600'
+      - '--max-instances'
+      - '100'
+
+  # Step 4: Create migration job (optional, for running migrations)
+  - name: 'gcr.io/cloud-builders/run'
+    id: 'create-job'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud run jobs update lifeos-migrate \
+          --image=gcr.io/$PROJECT_ID/lifeos-backend:${SHORT_SHA} \
+          --region=${_REGION} \
+          --task-timeout=3600 \
+          --service-account=${_SERVICE_ACCOUNT}@$PROJECT_ID.iam.gserviceaccount.com \
+          --set-env-vars=DB_ENGINE=${_DB_ENGINE},DB_NAME=${_DB_NAME},DB_USER=${_DB_USER},DB_PASSWORD=${_DB_PASSWORD},INSTANCE_CONNECTION_NAME=${_INSTANCE_CONNECTION_NAME},DJANGO_SECRET_KEY=${_DJANGO_SECRET_KEY} \
+          --command=python,manage.py,migrate,--noinput \
+          2>/dev/null || \
+        gcloud run jobs create lifeos-migrate \
+          --image=gcr.io/$PROJECT_ID/lifeos-backend:${SHORT_SHA} \
+          --region=${_REGION} \
+          --task-timeout=3600 \
+          --service-account=${_SERVICE_ACCOUNT}@$PROJECT_ID.iam.gserviceaccount.com \
+          --set-env-vars=DB_ENGINE=${_DB_ENGINE},DB_NAME=${_DB_NAME},DB_USER=${_DB_USER},DB_PASSWORD=${_DB_PASSWORD},INSTANCE_CONNECTION_NAME=${_INSTANCE_CONNECTION_NAME},DJANGO_SECRET_KEY=${_DJANGO_SECRET_KEY} \
+          --command=python,manage.py,migrate,--noinput
+
+  # Step 5: Execute migration job
+  - name: 'gcr.io/cloud-builders/run'
+    id: 'run-migrations'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - 'gcloud run jobs execute lifeos-migrate --region=${_REGION} || true'
+
+images:
+  - 'gcr.io/$PROJECT_ID/lifeos-backend:latest'
+  - 'gcr.io/$PROJECT_ID/lifeos-backend:${SHORT_SHA}'
+
+substitutions:
+  _REGION: 'us-central1'
+  _SERVICE_ACCOUNT: 'lifeos-cloud-run'
+  _DB_ENGINE: 'postgres'
+  _DB_NAME: 'lifeos'
+  _DB_USER: 'lifeos_app'
+  _DB_PASSWORD: ''  # Must be set via Cloud Build trigger secrets
+  _INSTANCE_CONNECTION_NAME: 'project:region:instance'  # Set via Cloud Build variables
+  _DJANGO_SECRET_KEY: ''  # Must be set via Cloud Build trigger secrets
+  _ALLOWED_HOSTS: 'lifeos-backend-project.run.app'  # Update with your domain
+  _GROQ_API_KEY: ''  # Must be set via Cloud Build trigger secrets
+  _API_URL: 'https://lifeos-backend-project.run.app'  # Update with your domain
+  _MEMORY: '2Gi'
+  _CPU: '2'
+
+options:
+  machineType: 'N1_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+  
+timeout: '1800s'
+
+# To set up Cloud Build trigger:
+# 1. gcloud builds triggers create github \
+#      --repo-name=lifeos \
+#      --repo-owner=YOUR_GITHUB_USERNAME \
+#      --branch-pattern="^main$" \
+#      --build-config=cloudbuild-cicd.yaml \
+#      --substitutions=_REGION=us-central1,_SERVICE_ACCOUNT=lifeos-cloud-run \
+#      --name=lifeos-deploy
+#
+# 2. Add secrets to Cloud Build:
+#    - _DB_PASSWORD
+#    - _DJANGO_SECRET_KEY
+#    - _GROQ_API_KEY
+#
+# 3. Connect GitHub repo to Google Cloud

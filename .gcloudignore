@@ -1,0 +1,9 @@
+# Cloud Run source uploads use this file.
+# Keep Git-based ignores, but force include runtime entrypoint scripts.
+.gcloudignore
+.git
+.gitignore
+
+#!include:.gitignore
+
+!start.sh
