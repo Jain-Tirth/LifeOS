@@ -9,7 +9,8 @@ from api.ui_views import chat_ui
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/', include('api.urls')),
+    path('api/v1/', include('api.urls')),
+    path('api/', include('api.urls')), # Kept for backwards compatibility
     path('agents/', include('agents.urls')),
     path('', chat_ui, name='chat_ui'),  # Chat UI at root
 ]

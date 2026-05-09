@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 
 class UserManager(BaseUserManager):
@@ -317,12 +319,21 @@ class Event(models.Model):
     metadata = models.JSONField(null=True, blank=True, help_text="Additional metadata")
     timestamp = models.DateTimeField(auto_now_add=True)
     parent_event = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='child_events')
+    idempotency_key = models.CharField(
+        max_length=255,
+        unique=True,
+        db_index=True,
+        null=True,
+        blank=True,
+        help_text="Unique key for deduplication (UUID from caller)"
+    )
     
     class Meta:
         ordering = ['timestamp']
         indexes = [
             models.Index(fields=['event_type', 'timestamp']),
             models.Index(fields=['session', 'timestamp']),
+            models.Index(fields=['idempotency_key']),
         ]
     
     def __str__(self):
@@ -497,3 +508,12 @@ class HabitLog(models.Model):
         status = '✅' if self.completed else '⬜'
         return f"{status} {self.habit.name} — {self.date}"
 
+
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from agents.services.context_cache import UserContextCache
+
+@receiver(post_save, sender=UserProfile)
+def invalidate_context_cache(sender, instance, **kwargs):
+    if hasattr(instance, 'user') and instance.user:
+        UserContextCache.invalidate(instance.user.id)

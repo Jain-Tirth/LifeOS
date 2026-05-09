@@ -21,6 +21,8 @@ urlpatterns = [
     path('auth/profile/', auth_views.get_user_profile, name='user-profile'),
     path('auth/profile/update/', auth_views.update_user_profile, name='update-profile'),
     path('auth/preferences/', auth_views.update_user_preferences, name='update-preferences'),
+    path('auth/password-reset/', auth_views.request_password_reset, name='request-password-reset'),
+    path('auth/password-reset-confirm/', auth_views.reset_password, name='reset-password'),
     
     # Orchestrator endpoints
     path('chat/', orchestrator_views.chat, name='chat'),
@@ -35,6 +37,9 @@ urlpatterns = [
     path('bulk-save-agent-responses/', orchestrator_views.bulk_save_agent_responses, name='bulk-save-agent-responses'),
     path('sessions/<str:session_id>/saved-items/', orchestrator_views.get_session_saved_items, name='session-saved-items'),
     
+    # Health check
+    path('health/', views.health_check, name='health-check'),
+
     # Agent and data endpoints
     path('', include(router.urls)),
     path('create-session/', views.create_agent_session, name='create-session'),

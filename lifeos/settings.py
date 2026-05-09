@@ -17,12 +17,27 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-change-this-in-production')
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-dev-key-for-testing-only')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'True') == 'True'
+DEBUG = os.getenv('DEBUG', 'True') == 'True'  # Default to True for development
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '*']
+# Validate ALLOWED_HOSTS in production
+ALLOWED_HOSTS_INPUT = os.getenv('ALLOWED_HOSTS', '')
+if ALLOWED_HOSTS_INPUT:
+    ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_INPUT.split(',') if host.strip()]
+else:
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+
+# Only raise error if SECRET_KEY is missing AND we're in production (DEBUG=False)
+if not SECRET_KEY and not DEBUG:
+    raise ValueError("DJANGO_SECRET_KEY must be set in production")
+else:
+    # Only allow localhost in development mode
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1'] if DEBUG else []
+    
+if not ALLOWED_HOSTS and not DEBUG:
+    raise ValueError("ALLOWED_HOSTS must be set in production environment")
 
 
 # Application definition
@@ -151,7 +166,7 @@ REST_FRAMEWORK = {
 }
 
 
-# CORS settings
+# CORS settings - Always use explicit origins, never allow all
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',  # Vite default dev server
@@ -159,8 +174,16 @@ CORS_ALLOWED_ORIGINS = [
     'http://localhost:5174',  # Alternate port
     'http://127.0.0.1:5174',
 ]
-if DEBUG:
-    CORS_ALLOW_ALL_ORIGINS = True  # Allow all in development
+
+# Add extra origins from environment variable if specified
+CORS_EXTRA_ORIGINS = os.getenv('CORS_EXTRA_ORIGINS', '')
+if CORS_EXTRA_ORIGINS:
+    CORS_ALLOWED_ORIGINS.extend([
+        origin.strip() for origin in CORS_EXTRA_ORIGINS.split(',') if origin.strip()
+    ])
+
+# NEVER enable CORS_ALLOW_ALL_ORIGINS in any environment
+# CORS_ALLOW_ALL_ORIGINS = False  # Explicitly disabled for security
 
 # CSRF settings
 CSRF_TRUSTED_ORIGINS = [
@@ -173,7 +196,10 @@ CSRF_TRUSTED_ORIGINS = [
 
 # Simple JWT settings (single token, no refresh)
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=7),  # Token valid for 7 days
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),  # Short-lived access token for security
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),     # Refresh token for extended sessions
+    'ROTATE_REFRESH_TOKENS': True,                   # Rotate refresh tokens on use
+    'BLACKLIST_AFTER_ROTATION': True,                # Blacklist old refresh tokens
     'AUTH_HEADER_TYPES': ('Bearer',),
     'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
     'USER_ID_FIELD': 'id',
@@ -187,3 +213,21 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
 # Groq API Configuration (primary - faster, better rate limits)
 GROQ_API_KEY = os.getenv('GROQ_API_KEY')
+
+# Security settings for production
+if not DEBUG:
+    # Session security
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    CSRF_COOKIE_SECURE = True
+    CSRF_COOKIE_HTTPONLY = True
+    CSRF_COOKIE_SAMESITE = 'Lax'
+    
+    # Additional security headers
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+    X_FRAME_OPTIONS = 'DENY'
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
