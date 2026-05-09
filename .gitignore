@@ -47,4 +47,5 @@ htmlcov/
 .Trashes
 ehthumbs.db
 Thumbs.db
+credentials.json
 ```
