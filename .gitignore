@@ -1,43 +1,50 @@
+```
+# Database
+db.sqlite3
+
+# Environment variables
+.env
+.env.local
+*.env.*
+
+# Logs
+*.log
+
 # Python
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
+*.pyc
+*.pyo
+*.pyd
 .Python
-venv/
 env/
-ENV/
-.venv
-
-# Django
+venv/
+.venv/
+.venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
 *.log
-db.sqlite3
-db.sqlite3-journal
-/media
-/staticfiles
-/static
+.git/refs/replace/
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.hypothesis/
 
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+# Testing
+.conftest.*
 
-# Environment
-*.env*
-.env.local
-
-# OS
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
-# Credentials of oauth
-credentials.json
-# for my own purposes
-*missing.txt
-# Deploy and it's related file
-deploy.*
-*.sh
-# Migrations (optional - uncomment if needed)
-# */migrations/*.py
-# !*/migrations/__init__.py
+```

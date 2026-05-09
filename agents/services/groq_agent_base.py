@@ -1,6 +1,6 @@
 """
 Groq Agent Base - Fast LLM agent using Groq API
-Now with DB-persisted history and context injection (no more amnesia).
+Now with DB-persisted history, context injection, and TOOL CALLING (actionable agent).
 """
 import os
 import json
@@ -10,6 +10,7 @@ from django.conf import settings
 from dotenv import load_dotenv
 from asgiref.sync import sync_to_async
 from .groq_client import GroqClientFactory
+from .tool_executor import tool_executor
 
 load_dotenv()
 
@@ -21,7 +22,9 @@ class GroqAgentRunner:
     Base runner for Groq-based agents with:
     - DB-persisted conversation history (survives server restarts)
     - User context injection (agents know WHO they're talking to)
+    - Native function calling (agents can EXECUTE actions, not just chat)
     - Streaming support
+    - Execution trace for transparency UI
     """
     
     AVAILABLE_MODELS = {
@@ -37,11 +40,13 @@ class GroqAgentRunner:
         system_instruction: str,
         model: str = 'llama-3.3-70b',
         temperature: float = 0.7,
-        max_tokens: int = 8000
+        max_tokens: int = 8000,
+        enable_tools: bool = True
     ):
         self.agent_name = agent_name
+        self.enable_tools = enable_tools
         
-        # Append formatting guidelines
+        # Append formatting guidelines AND tool usage instructions
         strict_formatting = """
         
 VISUAL STYLING GUIDELINES (STRICT COMPLIANCE REQUIRED):
@@ -52,6 +57,13 @@ VISUAL STYLING GUIDELINES (STRICT COMPLIANCE REQUIRED):
 - Callout Blocks: Wrap specific advice or "next steps" in > Blockquotes.
 - Tables: If comparing two or more things, use a Markdown table.
 - Task: Provide well-structured, professional, and visually scannable responses.
+
+TOOL USAGE RULES (CRITICAL):
+- When the user asks you to DO something (create task, check balance, schedule event), YOU MUST call the appropriate tool.
+- Do NOT just say "I'll create a task" - actually CALL the create_task tool with proper arguments.
+- After calling a tool, wait for the result, then inform the user of the outcome.
+- If multiple actions are needed, call tools one at a time in sequence.
+- Available tools: """ + (", ".join(tool_executor.tools.keys()) if enable_tools else "None") + """
 """
         self.system_instruction = system_instruction + strict_formatting
         self.temperature = temperature
@@ -63,6 +75,9 @@ VISUAL STYLING GUIDELINES (STRICT COMPLIANCE REQUIRED):
         # Initialize Groq clients
         self.client = GroqClientFactory.get_client()
         self.async_client = GroqClientFactory.get_async_client()
+        
+        # Get tool definitions for function calling
+        self.tools = tool_executor.get_tool_definitions() if enable_tools else []
     
     async def _load_history_from_db(self, session_id: str) -> List[Dict[str, str]]:
         """
@@ -239,7 +254,7 @@ VISUAL STYLING GUIDELINES (STRICT COMPLIANCE REQUIRED):
         user_context: Optional[Dict[str, Any]] = None
     ) -> str:
         """
-        Run agent and return complete response.
+        Run agent with tool calling support and return complete response.
         
         Args:
             user_input: User's message
@@ -247,21 +262,69 @@ VISUAL STYLING GUIDELINES (STRICT COMPLIANCE REQUIRED):
             user_context: User profile context from UserProfile.get_agent_context()
             
         Returns:
-            Complete agent response
+            Complete agent response (may include executed tool results)
         """
         try:
             messages = await self._build_messages(user_input, session_id, user_context)
             
-            response = await self.async_client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=self.temperature,
-                max_tokens=self.max_tokens,
-                frequency_penalty=0.2,
-                presence_penalty=0.2,
-            )
+            # Build API call with tools if enabled
+            api_kwargs = {
+                "model": self.model,
+                "messages": messages,
+                "temperature": self.temperature,
+                "max_tokens": self.max_tokens,
+                "frequency_penalty": 0.2,
+                "presence_penalty": 0.2,
+            }
+            
+            # Add tools for function calling if enabled
+            if self.tools:
+                api_kwargs["tools"] = self.tools
+            
+            response = await self.async_client.chat.completions.create(**api_kwargs)
             
             assistant_message = response.choices[0].message.content
+            
+            # Check if LLM requested tool calls
+            if response.choices[0].message.tool_calls:
+                logger.info(f"Tool calls detected: {len(response.choices[0].message.tool_calls)}")
+                
+                # Execute each tool call
+                for tool_call in response.choices[0].message.tool_calls:
+                    tool_name = tool_call.function.name
+                    tool_args = json.loads(tool_call.function.arguments)
+                    
+                    # Execute the tool
+                    result = await tool_executor.execute_tool(tool_name, tool_args)
+                    
+                    # Add tool result to messages for next iteration
+                    messages.append({
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [{
+                            "id": tool_call.id,
+                            "type": "function",
+                            "function": {
+                                "name": tool_name,
+                                "arguments": tool_call.function.arguments
+                            }
+                        }]
+                    })
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": json.dumps(result)
+                    })
+                
+                # Make second API call with tool results
+                final_response = await self.async_client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens,
+                )
+                assistant_message = final_response.choices[0].message.content or assistant_message
+            
             return assistant_message
             
         except Exception as e:

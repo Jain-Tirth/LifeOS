@@ -16,7 +16,13 @@ RUN python -m pip install --upgrade pip \
 
 COPY . .
 
-RUN chmod +x /app/start.sh
+# Create non-root user for security (principle of least privilege)
+RUN useradd -m -u 1000 appuser && \
+    chown -R appuser:appuser /app && \
+    chmod +x /app/start.sh
+
+# Switch to non-root user
+USER appuser
 
 RUN python manage.py collectstatic --noinput
 

@@ -1,7 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import api_view, action, permission_classes, throttle_classes
 from rest_framework.response import Response
-from .throttles import AgentMessageThrottle, AgentSessionThrottle, BurstThrottle
+from .throttles import AgentMessageThrottle, AgentSessionThrottle, BurstThrottle, AuthRateThrottle
 from rest_framework.permissions import IsAuthenticated
 from agents.models import (
     AgentSession, 
@@ -28,8 +28,37 @@ from agents.services.orchestrator import orchestrator
 from asgiref.sync import async_to_sync
 import uuid
 import logging
+import re
 
 logger = logging.getLogger(__name__)
+
+# Maximum message length to prevent prompt injection and cost explosion
+MAX_MESSAGE_LENGTH = 4000
+
+
+def sanitize_input(content):
+    """
+    Sanitize user input to prevent prompt injection attacks.
+    Removes or escapes potentially dangerous patterns.
+    """
+    if not content:
+        return content
+    
+    # Remove potential system prompt injection patterns
+    dangerous_patterns = [
+        r'(?i)ignore\s+previous\s+instructions',
+        r'(?i)system:\s*',
+        r'(?i)you\s+are\s+now',
+        r'(?i)forget\s+all',
+        r'(?i)bypass\s+',
+        r'(?i)override\s+',
+    ]
+    
+    sanitized = content
+    for pattern in dangerous_patterns:
+        sanitized = re.sub(pattern, '[REMOVED]', sanitized)
+    
+    return sanitized.strip()
 
 
 class AgentSessionViewSet(viewsets.ModelViewSet):
@@ -42,25 +71,36 @@ class AgentSessionViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'], throttle_classes=[AgentMessageThrottle, BurstThrottle])
     def send_message(self, request, pk=None):
-        """Send a message to an agent session"""
+        """Send a message to an agent session with input validation and sanitization"""
         session = self.get_object()
-        content = request.data.get('content')
+        content = request.data.get('content', '').strip()
         
+        # Validate content presence
         if not content:
             return Response(
                 {'error': 'Content is required'}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Create user message
+        # Validate content length to prevent token limit exhaustion and cost explosion
+        if len(content) > MAX_MESSAGE_LENGTH:
+            return Response(
+                {'error': f'Message exceeds {MAX_MESSAGE_LENGTH} character limit. Please shorten your message.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Sanitize input to prevent prompt injection attacks
+        sanitized_content = sanitize_input(content)
+        
+        # Create user message with sanitized content
         user_message = Message.objects.create(
             session=session,
             role='user',
-            content=content
+            content=sanitized_content
         )
         
         result = async_to_sync(orchestrator.process_message)(
-            message=content,
+            message=sanitized_content,
             user=request.user,
             session=session
         )
