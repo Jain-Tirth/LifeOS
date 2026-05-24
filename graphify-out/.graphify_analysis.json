@@ -1,0 +1,124 @@
+{
+  "communities": {
+    "0": [
+      "agentoutputrenderer_agentoutputrenderer_communicationrenderer"
+    ],
+    "1": [
+      "agentoutputrenderer_agentoutputrenderer_executionrenderer"
+    ],
+    "2": [
+      "agentoutputrenderer_agentoutputrenderer_genericmarkdownrenderer"
+    ],
+    "3": [
+      "agentoutputrenderer_agentoutputrenderer_habitrenderer"
+    ],
+    "4": [
+      "agentoutputrenderer_agentoutputrenderer_mealplanrenderer"
+    ],
+    "5": [
+      "agentoutputrenderer_agentoutputrenderer_studyplanrenderer"
+    ],
+    "6": [
+      "agentoutputrenderer_agentoutputrenderer_tasklistrenderer"
+    ],
+    "7": [
+      "agentoutputrenderer_agentoutputrenderer_wellnessrenderer"
+    ],
+    "8": [
+      "hooks_usechatstate_usechatstate"
+    ],
+    "9": [
+      "hooks_usechattransport_usechattransport"
+    ],
+    "10": [
+      "hooks_usesessionmanager_usesessionmanager"
+    ],
+    "11": [
+      "utils_agentparsers_buildsavepayload"
+    ],
+    "12": [
+      "utils_agentparsers_detectagentfromcontent"
+    ],
+    "13": [
+      "utils_agentparsers_detectagentkey"
+    ],
+    "14": [
+      "utils_agentparsers_parsemealdata"
+    ],
+    "15": [
+      "utils_agentparsers_parsestudydata"
+    ],
+    "16": [
+      "utils_agentparsers_parsetaskdata"
+    ],
+    "17": [
+      "utils_agentparsers_parsewellnessdata"
+    ],
+    "18": [
+      "utils_agentparsers_resolveagentname"
+    ],
+    "19": [
+      "utils_errormessage_normalizeerrormessage"
+    ],
+    "20": [
+      "utils_timeformatters_formattimestamp"
+    ],
+    "21": [
+      "utils_timeformatters_getdateseparator"
+    ]
+  },
+  "cohesion": {},
+  "god_nodes": [
+    {
+      "id": "agentoutputrenderer_agentoutputrenderer_mealplanrenderer",
+      "label": "MealPlanRenderer",
+      "degree": 0
+    },
+    {
+      "id": "agentoutputrenderer_agentoutputrenderer_tasklistrenderer",
+      "label": "TaskListRenderer",
+      "degree": 0
+    },
+    {
+      "id": "agentoutputrenderer_agentoutputrenderer_studyplanrenderer",
+      "label": "StudyPlanRenderer",
+      "degree": 0
+    },
+    {
+      "id": "agentoutputrenderer_agentoutputrenderer_wellnessrenderer",
+      "label": "WellnessRenderer",
+      "degree": 0
+    },
+    {
+      "id": "agentoutputrenderer_agentoutputrenderer_habitrenderer",
+      "label": "HabitRenderer",
+      "degree": 0
+    },
+    {
+      "id": "agentoutputrenderer_agentoutputrenderer_communicationrenderer",
+      "label": "CommunicationRenderer",
+      "degree": 0
+    },
+    {
+      "id": "agentoutputrenderer_agentoutputrenderer_executionrenderer",
+      "label": "ExecutionRenderer",
+      "degree": 0
+    },
+    {
+      "id": "agentoutputrenderer_agentoutputrenderer_genericmarkdownrenderer",
+      "label": "GenericMarkdownRenderer",
+      "degree": 0
+    },
+    {
+      "id": "hooks_usechatstate_usechatstate",
+      "label": "useChatState",
+      "degree": 0
+    },
+    {
+      "id": "hooks_usechattransport_usechattransport",
+      "label": "useChatTransport",
+      "degree": 0
+    }
+  ],
+  "surprises": []
+}

@@ -1,0 +1,162 @@
+{
+  "directed": false,
+  "multigraph": false,
+  "graph": {},
+  "nodes": [
+    {
+      "label": "MealPlanRenderer",
+      "file_type": "code",
+      "source_file": "frontend/src/components/AgentOutputRenderer/AgentOutputRenderer.jsx",
+      "source_location": "L90",
+      "id": "agentoutputrenderer_agentoutputrenderer_mealplanrenderer"
+    },
+    {
+      "label": "TaskListRenderer",
+      "file_type": "code",
+      "source_file": "frontend/src/components/AgentOutputRenderer/AgentOutputRenderer.jsx",
+      "source_location": "L171",
+      "id": "agentoutputrenderer_agentoutputrenderer_tasklistrenderer"
+    },
+    {
+      "label": "StudyPlanRenderer",
+      "file_type": "code",
+      "source_file": "frontend/src/components/AgentOutputRenderer/AgentOutputRenderer.jsx",
+      "source_location": "L237",
+      "id": "agentoutputrenderer_agentoutputrenderer_studyplanrenderer"
+    },
+    {
+      "label": "WellnessRenderer",
+      "file_type": "code",
+      "source_file": "frontend/src/components/AgentOutputRenderer/AgentOutputRenderer.jsx",
+      "source_location": "L273",
+      "id": "agentoutputrenderer_agentoutputrenderer_wellnessrenderer"
+    },
+    {
+      "label": "HabitRenderer",
+      "file_type": "code",
+      "source_file": "frontend/src/components/AgentOutputRenderer/AgentOutputRenderer.jsx",
+      "source_location": "L307",
+      "id": "agentoutputrenderer_agentoutputrenderer_habitrenderer"
+    },
+    {
+      "label": "CommunicationRenderer",
+      "file_type": "code",
+      "source_file": "frontend/src/components/AgentOutputRenderer/AgentOutputRenderer.jsx",
+      "source_location": "L334",
+      "id": "agentoutputrenderer_agentoutputrenderer_communicationrenderer"
+    },
+    {
+      "label": "ExecutionRenderer",
+      "file_type": "code",
+      "source_file": "frontend/src/components/AgentOutputRenderer/AgentOutputRenderer.jsx",
+      "source_location": "L419",
+      "id": "agentoutputrenderer_agentoutputrenderer_executionrenderer"
+    },
+    {
+      "label": "GenericMarkdownRenderer",
+      "file_type": "code",
+      "source_file": "frontend/src/components/AgentOutputRenderer/AgentOutputRenderer.jsx",
+      "source_location": "L461",
+      "id": "agentoutputrenderer_agentoutputrenderer_genericmarkdownrenderer"
+    },
+    {
+      "label": "useChatState",
+      "file_type": "code",
+      "source_file": "frontend/src/pages/Chat/hooks/useChatState.js",
+      "source_location": "L7",
+      "id": "hooks_usechatstate_usechatstate"
+    },
+    {
+      "label": "useChatTransport",
+      "file_type": "code",
+      "source_file": "frontend/src/pages/Chat/hooks/useChatTransport.js",
+      "source_location": "L8",
+      "id": "hooks_usechattransport_usechattransport"
+    },
+    {
+      "label": "useSessionManager",
+      "file_type": "code",
+      "source_file": "frontend/src/pages/Chat/hooks/useSessionManager.js",
+      "source_location": "L10",
+      "id": "hooks_usesessionmanager_usesessionmanager"
+    },
+    {
+      "label": "detectAgentKey",
+      "file_type": "code",
+      "source_file": "frontend/src/utils/agentParsers.js",
+      "source_location": "L49",
+      "id": "utils_agentparsers_detectagentkey"
+    },
+    {
+      "label": "detectAgentFromContent",
+      "file_type": "code",
+      "source_file": "frontend/src/utils/agentParsers.js",
+      "source_location": "L60",
+      "id": "utils_agentparsers_detectagentfromcontent"
+    },
+    {
+      "label": "resolveAgentName",
+      "file_type": "code",
+      "source_file": "frontend/src/utils/agentParsers.js",
+      "source_location": "L86",
+      "id": "utils_agentparsers_resolveagentname"
+    },
+    {
+      "label": "parseMealData",
+      "file_type": "code",
+      "source_file": "frontend/src/utils/agentParsers.js",
+      "source_location": "L220",
+      "id": "utils_agentparsers_parsemealdata"
+    },
+    {
+      "label": "parseTaskData",
+      "file_type": "code",
+      "source_file": "frontend/src/utils/agentParsers.js",
+      "source_location": "L266",
+      "id": "utils_agentparsers_parsetaskdata"
+    },
+    {
+      "label": "parseStudyData",
+      "file_type": "code",
+      "source_file": "frontend/src/utils/agentParsers.js",
+      "source_location": "L284",
+      "id": "utils_agentparsers_parsestudydata"
+    },
+    {
+      "label": "parseWellnessData",
+      "file_type": "code",
+      "source_file": "frontend/src/utils/agentParsers.js",
+      "source_location": "L301",
+      "id": "utils_agentparsers_parsewellnessdata"
+    },
+    {
+      "label": "buildSavePayload",
+      "file_type": "code",
+      "source_file": "frontend/src/utils/agentParsers.js",
+      "source_location": "L320",
+      "id": "utils_agentparsers_buildsavepayload"
+    },
+    {
+      "label": "normalizeErrorMessage",
+      "file_type": "code",
+      "source_file": "frontend/src/utils/errorMessage.js",
+      "source_location": "L1",
+      "id": "utils_errormessage_normalizeerrormessage"
+    },
+    {
+      "label": "formatTimestamp",
+      "file_type": "code",
+      "source_file": "frontend/src/utils/timeFormatters.js",
+      "source_location": "L5",
+      "id": "utils_timeformatters_formattimestamp"
+    },
+    {
+      "label": "getDateSeparator",
+      "file_type": "code",
+      "source_file": "frontend/src/utils/timeFormatters.js",
+      "source_location": "L20",
+      "id": "utils_timeformatters_getdateseparator"
+    }
+  ],
+  "edges": []
+}

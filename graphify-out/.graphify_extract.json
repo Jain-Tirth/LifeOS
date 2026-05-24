@@ -1,0 +1,423 @@
+{
+  "nodes": [
+    {
+      "id": "agentoutputrenderer_agentoutputrenderer_mealplanrenderer",
+      "label": "MealPlanRenderer",
+      "file_type": "code",
+      "source_file": "frontend\\src\\components\\AgentOutputRenderer\\AgentOutputRenderer.jsx",
+      "source_location": "L90"
+    },
+    {
+      "id": "agentoutputrenderer_agentoutputrenderer_tasklistrenderer",
+      "label": "TaskListRenderer",
+      "file_type": "code",
+      "source_file": "frontend\\src\\components\\AgentOutputRenderer\\AgentOutputRenderer.jsx",
+      "source_location": "L171"
+    },
+    {
+      "id": "agentoutputrenderer_agentoutputrenderer_studyplanrenderer",
+      "label": "StudyPlanRenderer",
+      "file_type": "code",
+      "source_file": "frontend\\src\\components\\AgentOutputRenderer\\AgentOutputRenderer.jsx",
+      "source_location": "L237"
+    },
+    {
+      "id": "agentoutputrenderer_agentoutputrenderer_wellnessrenderer",
+      "label": "WellnessRenderer",
+      "file_type": "code",
+      "source_file": "frontend\\src\\components\\AgentOutputRenderer\\AgentOutputRenderer.jsx",
+      "source_location": "L273"
+    },
+    {
+      "id": "agentoutputrenderer_agentoutputrenderer_habitrenderer",
+      "label": "HabitRenderer",
+      "file_type": "code",
+      "source_file": "frontend\\src\\components\\AgentOutputRenderer\\AgentOutputRenderer.jsx",
+      "source_location": "L307"
+    },
+    {
+      "id": "agentoutputrenderer_agentoutputrenderer_communicationrenderer",
+      "label": "CommunicationRenderer",
+      "file_type": "code",
+      "source_file": "frontend\\src\\components\\AgentOutputRenderer\\AgentOutputRenderer.jsx",
+      "source_location": "L334"
+    },
+    {
+      "id": "agentoutputrenderer_agentoutputrenderer_executionrenderer",
+      "label": "ExecutionRenderer",
+      "file_type": "code",
+      "source_file": "frontend\\src\\components\\AgentOutputRenderer\\AgentOutputRenderer.jsx",
+      "source_location": "L419"
+    },
+    {
+      "id": "agentoutputrenderer_agentoutputrenderer_genericmarkdownrenderer",
+      "label": "GenericMarkdownRenderer",
+      "file_type": "code",
+      "source_file": "frontend\\src\\components\\AgentOutputRenderer\\AgentOutputRenderer.jsx",
+      "source_location": "L461"
+    },
+    {
+      "id": "hooks_usechatstate_usechatstate",
+      "label": "useChatState",
+      "file_type": "code",
+      "source_file": "frontend\\src\\pages\\Chat\\hooks\\useChatState.js",
+      "source_location": "L7"
+    },
+    {
+      "id": "hooks_usechattransport_usechattransport",
+      "label": "useChatTransport",
+      "file_type": "code",
+      "source_file": "frontend\\src\\pages\\Chat\\hooks\\useChatTransport.js",
+      "source_location": "L8"
+    },
+    {
+      "id": "hooks_usesessionmanager_usesessionmanager",
+      "label": "useSessionManager",
+      "file_type": "code",
+      "source_file": "frontend\\src\\pages\\Chat\\hooks\\useSessionManager.js",
+      "source_location": "L10"
+    },
+    {
+      "id": "utils_agentparsers_detectagentkey",
+      "label": "detectAgentKey",
+      "file_type": "code",
+      "source_file": "frontend\\src\\utils\\agentParsers.js",
+      "source_location": "L49"
+    },
+    {
+      "id": "utils_agentparsers_detectagentfromcontent",
+      "label": "detectAgentFromContent",
+      "file_type": "code",
+      "source_file": "frontend\\src\\utils\\agentParsers.js",
+      "source_location": "L60"
+    },
+    {
+      "id": "utils_agentparsers_resolveagentname",
+      "label": "resolveAgentName",
+      "file_type": "code",
+      "source_file": "frontend\\src\\utils\\agentParsers.js",
+      "source_location": "L86"
+    },
+    {
+      "id": "utils_agentparsers_parsemealdata",
+      "label": "parseMealData",
+      "file_type": "code",
+      "source_file": "frontend\\src\\utils\\agentParsers.js",
+      "source_location": "L220"
+    },
+    {
+      "id": "utils_agentparsers_parsetaskdata",
+      "label": "parseTaskData",
+      "file_type": "code",
+      "source_file": "frontend\\src\\utils\\agentParsers.js",
+      "source_location": "L266"
+    },
+    {
+      "id": "utils_agentparsers_parsestudydata",
+      "label": "parseStudyData",
+      "file_type": "code",
+      "source_file": "frontend\\src\\utils\\agentParsers.js",
+      "source_location": "L284"
+    },
+    {
+      "id": "utils_agentparsers_parsewellnessdata",
+      "label": "parseWellnessData",
+      "file_type": "code",
+      "source_file": "frontend\\src\\utils\\agentParsers.js",
+      "source_location": "L301"
+    },
+    {
+      "id": "utils_agentparsers_buildsavepayload",
+      "label": "buildSavePayload",
+      "file_type": "code",
+      "source_file": "frontend\\src\\utils\\agentParsers.js",
+      "source_location": "L320"
+    },
+    {
+      "id": "utils_errormessage_normalizeerrormessage",
+      "label": "normalizeErrorMessage",
+      "file_type": "code",
+      "source_file": "frontend\\src\\utils\\errorMessage.js",
+      "source_location": "L1"
+    },
+    {
+      "id": "utils_timeformatters_formattimestamp",
+      "label": "formatTimestamp",
+      "file_type": "code",
+      "source_file": "frontend\\src\\utils\\timeFormatters.js",
+      "source_location": "L5"
+    },
+    {
+      "id": "utils_timeformatters_getdateseparator",
+      "label": "getDateSeparator",
+      "file_type": "code",
+      "source_file": "frontend\\src\\utils\\timeFormatters.js",
+      "source_location": "L20"
+    }
+  ],
+  "edges": [
+    {
+      "source": "frontend_vite_deps_clsx_js",
+      "target": "frontend_vite_deps_chunk_kdvgfzwc_js",
+      "relation": "re_exports",
+      "context": "export",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend\\.vite\\deps\\clsx.js",
+      "source_location": "L6",
+      "weight": 1.0
+    },
+    {
+      "source": "lifeos_init_py",
+      "target": "lifeos_celery_py",
+      "relation": "re_exports",
+      "context": "export",
+      "confidence": "EXTRACTED",
+      "source_file": "lifeos\\__init__.py",
+      "source_location": "L3",
+      "weight": 1.0
+    },
+    {
+      "source": "frontend_src_components_actionfeedbackbanner_actionfeedbackbanner_jsx",
+      "target": "utils_errormessage_normalizeerrormessage",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend\\src\\components\\ActionFeedbackBanner\\ActionFeedbackBanner.jsx",
+      "source_location": "L12",
+      "weight": 1.0
+    },
+    {
+      "source": "frontend_src_components_agentoutputrenderer_agentoutputrenderer_jsx",
+      "target": "utils_agentparsers_detectagentkey",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend\\src\\components\\AgentOutputRenderer\\AgentOutputRenderer.jsx",
+      "source_location": "L16",
+      "weight": 1.0
+    },
+    {
+      "source": "frontend_src_components_draftcard_draftcard_jsx",
+      "target": "utils_agentparsers_detectagentkey",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend\\src\\components\\DraftCard\\DraftCard.jsx",
+      "source_location": "L7",
+      "weight": 1.0
+    },
+    {
+      "source": "frontend_src_components_draftcard_draftcard_jsx",
+      "target": "utils_agentparsers_buildsavepayload",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend\\src\\components\\DraftCard\\DraftCard.jsx",
+      "source_location": "L7",
+      "weight": 1.0
+    },
+    {
+      "source": "frontend_src_pages_chat_chat_jsx",
+      "target": "hooks_usechatstate_usechatstate",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend\\src\\pages\\Chat\\Chat.jsx",
+      "source_location": "L24",
+      "weight": 1.0
+    },
+    {
+      "source": "frontend_src_pages_chat_chat_jsx",
+      "target": "hooks_usesessionmanager_usesessionmanager",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend\\src\\pages\\Chat\\Chat.jsx",
+      "source_location": "L25",
+      "weight": 1.0
+    },
+    {
+      "source": "frontend_src_pages_chat_chat_jsx",
+      "target": "hooks_usechattransport_usechattransport",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend\\src\\pages\\Chat\\Chat.jsx",
+      "source_location": "L26",
+      "weight": 1.0
+    },
+    {
+      "source": "frontend_src_pages_chat_components_chatrenderer_jsx",
+      "target": "utils_timeformatters_formattimestamp",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend\\src\\pages\\Chat\\components\\ChatRenderer.jsx",
+      "source_location": "L18",
+      "weight": 1.0
+    },
+    {
+      "source": "frontend_src_pages_chat_components_chatrenderer_jsx",
+      "target": "utils_timeformatters_getdateseparator",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend\\src\\pages\\Chat\\components\\ChatRenderer.jsx",
+      "source_location": "L18",
+      "weight": 1.0
+    },
+    {
+      "source": "frontend_src_pages_chat_hooks_usesessionmanager_js",
+      "target": "utils_agentparsers_resolveagentname",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend\\src\\pages\\Chat\\hooks\\useSessionManager.js",
+      "source_location": "L7",
+      "weight": 1.0
+    },
+    {
+      "source": "frontend_src_pages_login_login_jsx",
+      "target": "utils_errormessage_normalizeerrormessage",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend\\src\\pages\\Login\\Login.jsx",
+      "source_location": "L6",
+      "weight": 1.0
+    },
+    {
+      "source": "frontend_src_pages_register_register_jsx",
+      "target": "utils_errormessage_normalizeerrormessage",
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend\\src\\pages\\Register\\Register.jsx",
+      "source_location": "L5",
+      "weight": 1.0
+    },
+    {
+      "source": "actionfeedbackbanner_actionfeedbackbanner_actionrow",
+      "target": "utils_errormessage_normalizeerrormessage",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend\\src\\components\\ActionFeedbackBanner\\ActionFeedbackBanner.jsx",
+      "source_location": "L95",
+      "weight": 1.0
+    },
+    {
+      "source": "agentoutputrenderer_agentoutputrenderer_agentoutputrenderer",
+      "target": "utils_agentparsers_detectagentkey",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend\\src\\components\\AgentOutputRenderer\\AgentOutputRenderer.jsx",
+      "source_location": "L479",
+      "weight": 1.0
+    },
+    {
+      "source": "draftcard_draftcard_draftcard",
+      "target": "utils_agentparsers_detectagentkey",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend\\src\\components\\DraftCard\\DraftCard.jsx",
+      "source_location": "L85",
+      "weight": 1.0
+    },
+    {
+      "source": "draftcard_draftcard_draftcard",
+      "target": "utils_agentparsers_buildsavepayload",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend\\src\\components\\DraftCard\\DraftCard.jsx",
+      "source_location": "L88",
+      "weight": 1.0
+    },
+    {
+      "source": "chat_chat_chat",
+      "target": "hooks_usechatstate_usechatstate",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend\\src\\pages\\Chat\\Chat.jsx",
+      "source_location": "L30",
+      "weight": 1.0
+    },
+    {
+      "source": "chat_chat_chat",
+      "target": "hooks_usesessionmanager_usesessionmanager",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend\\src\\pages\\Chat\\Chat.jsx",
+      "source_location": "L59",
+      "weight": 1.0
+    },
+    {
+      "source": "chat_chat_chat",
+      "target": "hooks_usechattransport_usechattransport",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend\\src\\pages\\Chat\\Chat.jsx",
+      "source_location": "L71",
+      "weight": 1.0
+    },
+    {
+      "source": "components_chatrenderer_chatrenderer",
+      "target": "utils_timeformatters_getdateseparator",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend\\src\\pages\\Chat\\components\\ChatRenderer.jsx",
+      "source_location": "L86",
+      "weight": 1.0
+    },
+    {
+      "source": "components_chatrenderer_chatrenderer",
+      "target": "utils_timeformatters_formattimestamp",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend\\src\\pages\\Chat\\components\\ChatRenderer.jsx",
+      "source_location": "L125",
+      "weight": 1.0
+    },
+    {
+      "source": "hooks_usesessionmanager_mapmessages",
+      "target": "utils_agentparsers_resolveagentname",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend\\src\\pages\\Chat\\hooks\\useSessionManager.js",
+      "source_location": "L97",
+      "weight": 1.0
+    },
+    {
+      "source": "login_login_login",
+      "target": "utils_errormessage_normalizeerrormessage",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend\\src\\pages\\Login\\Login.jsx",
+      "source_location": "L27",
+      "weight": 1.0
+    },
+    {
+      "source": "register_register_register",
+      "target": "utils_errormessage_normalizeerrormessage",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "frontend\\src\\pages\\Register\\Register.jsx",
+      "source_location": "L39",
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [],
+  "input_tokens": 0,
+  "output_tokens": 0
+}
