@@ -16,8 +16,7 @@ RUN python -m pip install --upgrade pip \
 
 COPY . .
 
-RUN sed -i 's/\r$//' /app/start.sh \
-    && chmod +x /app/start.sh
+RUN chmod +x /app/start.sh
 
 RUN python manage.py collectstatic --noinput
 
