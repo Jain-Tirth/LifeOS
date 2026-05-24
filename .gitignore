@@ -48,4 +48,11 @@ htmlcov/
 ehthumbs.db
 Thumbs.db
 credentials.json
-```
+token.json
+
+# Deploy and it's related file
+deploy.*
+# *.sh
+# Migrations (optional - uncomment if needed)
+# */migrations/*.py
+# !*/migrations/__init__.py
