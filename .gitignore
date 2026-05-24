@@ -52,7 +52,11 @@ token.json
 
 # Deploy and it's related file
 deploy.*
-# *.sh
 # Migrations (optional - uncomment if needed)
-# */migrations/*.py
-# !*/migrations/__init__.py
+*/migrations/*.py
+!*/migrations/__init__.py
+
+#graphify modules ignore files
+graphify-out/manifest.json    # mtime-based, breaks after git clone
+graphify-out/cost.json        # local only
+graphify-out/cache/         # optional: commit for speed, skip to keep repo small
