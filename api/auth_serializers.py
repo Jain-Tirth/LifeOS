@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from agents.models import User, UserProfile
+from backend.users.models import User, UserProfile
 from django.contrib.auth.password_validation import validate_password
 from rest_framework_simplejwt.tokens import AccessToken
 

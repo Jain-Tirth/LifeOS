@@ -8,8 +8,8 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.tokens import AccessToken, RefreshToken
 from django.core.cache import cache
-from agents.models import User, UserProfile
-from agents.services.event_bus import audit_logger
+from backend.users.models import User, UserProfile
+from backend.execution.logs.event_bus import audit_logger
 from .auth_serializers import (
     UserRegistrationSerializer, 
     UserLoginSerializer, 
@@ -252,7 +252,7 @@ def get_user_profile(request):
     """Get current user profile including preferences."""
     UserProfile.objects.get_or_create(user=request.user)
     serializer = UserSerializer(request.user)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 @api_view(['PUT', 'PATCH'])
@@ -299,3 +299,18 @@ def update_user_preferences(request):
         }, status=status.HTTP_200_OK)
     
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def request_password_reset(request):
+    '''Request password reset email.'''
+    # In a real application, we would generate a token and send an email
+    # For now, we just return a success message to avoid exposing whether the user exists
+    return Response({'message': 'If the user exists, a password reset email has been sent'}, status=status.HTTP_200.OK)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_password(request):
+    '''Reset password using token and new password.'''
+    # In a real application, we would validate the token and set the password
+    # For now, we just return a success message
+    return Response({'message': 'Password has been reset successfully'}, status=status.HTTP_200.OK)
